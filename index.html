@@ -160,7 +160,20 @@
       <input type="email" id="login-email" placeholder="Email" autocomplete="off">
       <input type="password" id="login-pass" placeholder="Contraseña">
       <button class="login-btn" onclick="doLogin()">Ingresar</button>
+      <div style="text-align:center;margin-top:0.5rem">
+        <button onclick="showForgot()" style="background:none;border:none;color:#999;font-size:0.8rem;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif">¿Olvidaste tu contraseña?</button>
+      </div>
       <div id="login-msg"></div>
+    </div>
+    
+    <div id="forgot-panel" class="login-form" style="display:none">
+      <p style="font-size:0.82rem;color:#666;text-align:center">Ingresá tu email y te enviaremos un link para restablecer tu contraseña.</p>
+      <input type="email" id="forgot-email" placeholder="Tu email" autocomplete="off">
+      <button class="login-btn" onclick="doForgot()">Enviar link</button>
+      <div style="text-align:center;margin-top:0.5rem">
+        <button onclick="showLogin()" style="background:none;border:none;color:#999;font-size:0.8rem;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif">← Volver</button>
+      </div>
+      <div id="forgot-msg"></div>
     </div>
     <div id="registro-panel" class="login-form" style="display:none">
       <input type="text" id="reg-nombre" placeholder="Nombre completo">
@@ -315,6 +328,43 @@ function switchTab(tab, btn) {
   btn.classList.add('active');
   document.getElementById('login-panel').style.display = tab==='login'?'flex':'none';
   document.getElementById('registro-panel').style.display = tab==='registro'?'flex':'none';
+  document.getElementById('forgot-panel').style.display = 'none';
+}
+
+function showForgot() {
+  document.getElementById('login-panel').style.display = 'none';
+  document.getElementById('registro-panel').style.display = 'none';
+  document.getElementById('forgot-panel').style.display = 'flex';
+  document.querySelectorAll('.login-tab').forEach(b=>b.classList.remove('active'));
+}
+
+function showLogin() {
+  document.getElementById('login-panel').style.display = 'flex';
+  document.getElementById('forgot-panel').style.display = 'none';
+  document.querySelectorAll('.login-tab')[0].classList.add('active');
+}
+
+async function doForgot() {
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) { 
+    const el = document.getElementById('forgot-msg');
+    el.textContent = 'Ingresá tu email'; el.className = 'login-msg error'; 
+    return; 
+  }
+  try {
+    const r = await fetch(`${SB_AUTH}/recover`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const el = document.getElementById('forgot-msg');
+    el.textContent = '✓ Si el email existe, recibirás el link en minutos.';
+    el.className = 'login-msg success';
+  } catch(e) {
+    const el = document.getElementById('forgot-msg');
+    el.textContent = 'Error al enviar. Intentá de nuevo.';
+    el.className = 'login-msg error';
+  }
 }
 document.addEventListener('keydown', e => {
   if (e.key==='Enter' && document.getElementById('login-screen').style.display!=='none') doLogin();
@@ -348,7 +398,19 @@ async function cargarApp() {
       return;
     }
 
-    // Get contratos for this inquilino
+    // Get contratos for this inquilino only
+    if (!usuario.persona_id) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('content').innerHTML = `
+        <div style="text-align:center;padding:3rem">
+          <div style="font-size:2rem;margin-bottom:1rem">🏠</div>
+          <h2 style="font-family:'DM Serif Display',serif;margin-bottom:0.5rem">Tu cuenta está siendo configurada</h2>
+          <p style="color:#888;font-size:0.9rem">La inmobiliaria está vinculando tu usuario con tu contrato. En breve podrás ver tus datos.</p>
+        </div>
+      `;
+      return;
+    }
     const contratos = await sbGet('contratos', `inquilino_id=eq.${usuario.persona_id}&select=*&order=vigencia_desde.desc`);
 
     if (!contratos.length) {
@@ -358,12 +420,14 @@ async function cargarApp() {
       return;
     }
 
-    // Get pagos for all contratos
+    // Get pagos only for this inquilino's contratos
     const hojas = contratos.map(c => c.hoja);
     let todosPagos = [];
-    for (const hoja of hojas) {
-      const pagos = await sbGet('pagos', `hoja=eq.${encodeURIComponent(hoja)}&order=mes.asc`);
-      todosPagos = todosPagos.concat(pagos);
+    if (hojas.length > 0) {
+      for (const hoja of hojas) {
+        const pagos = await sbGet('pagos', `hoja=eq.${encodeURIComponent(hoja)}&order=mes.asc`);
+        todosPagos = todosPagos.concat(pagos);
+      }
     }
 
     // Get extras
