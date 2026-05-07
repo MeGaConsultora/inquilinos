@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mi Alquiler — MeGa Consultora</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1a1a2e;
+    --ink2: #2d2d4e;
+    --cream: #f5f0e8;
+    --accent: #c8483a;
+    --green: #2d7a4f;
+    --gold: #b8860b;
+    --border: #ddd8ce;
+    --shadow: 0 2px 12px rgba(26,26,46,0.08);
+    --shadow-lg: 0 8px 32px rgba(26,26,46,0.14);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'DM Sans',sans-serif; background:var(--cream); color:var(--ink); min-height:100vh; }
+
+  /* LOGIN */
+  #login-screen {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    background:var(--ink); padding:1rem; position:fixed; inset:0; z-index:1000;
+  }
+  .login-card {
+    background:white; border-radius:20px; padding:2.5rem;
+    width:100%; max-width:400px; box-shadow:0 20px 60px rgba(0,0,0,0.4);
+  }
+  .login-logo { text-align:center; margin-bottom:2rem; }
+  .login-logo-dot { width:10px; height:10px; background:var(--accent); border-radius:50%; display:inline-block; margin-right:6px; }
+  .login-logo-title { font-family:'DM Serif Display',serif; font-size:1.6rem; color:var(--ink); }
+  .login-logo-sub { font-size:0.82rem; color:#999; margin-top:6px; }
+  .login-tabs { display:flex; background:var(--cream); border-radius:10px; padding:4px; margin-bottom:1.5rem; }
+  .login-tab { flex:1; padding:0.5rem; border:none; background:none; border-radius:8px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.85rem; font-weight:500; color:#888; transition:all 0.2s; }
+  .login-tab.active { background:white; color:var(--ink); box-shadow:0 1px 4px rgba(0,0,0,0.1); }
+  .login-form { display:flex; flex-direction:column; gap:1rem; }
+  .login-form input { padding:0.75rem 1rem; border:1.5px solid var(--border); border-radius:10px; font-family:'DM Sans',sans-serif; font-size:0.95rem; color:var(--ink); transition:border-color 0.2s; width:100%; }
+  .login-form input:focus { outline:none; border-color:var(--accent); }
+  .login-btn { padding:0.8rem; background:var(--accent); color:white; border:none; border-radius:10px; font-family:'DM Sans',sans-serif; font-size:1rem; font-weight:600; cursor:pointer; margin-top:0.5rem; width:100%; }
+  .login-btn:hover { background:#a83828; }
+  .login-msg { text-align:center; font-size:0.82rem; padding:0.75rem; border-radius:8px; margin-top:0.5rem; }
+  .login-msg.error { background:#f8d7da; color:#721c24; }
+  .login-msg.success { background:#d4edda; color:#155724; }
+  .login-msg.warn { background:#fff3cd; color:#856404; }
+
+  /* HEADER */
+  header {
+    background:var(--ink); color:white;
+    padding:0 1.5rem; display:flex; align-items:center;
+    justify-content:space-between; height:60px;
+    position:sticky; top:0; z-index:100;
+    box-shadow:0 2px 16px rgba(0,0,0,0.25);
+  }
+  .logo { font-family:'DM Serif Display',serif; font-size:1.2rem; display:flex; align-items:center; gap:8px; }
+  .logo-dot { width:7px; height:7px; background:var(--accent); border-radius:50%; }
+  .header-right { display:flex; align-items:center; gap:0.75rem; font-size:0.82rem; }
+  .salir-btn { background:rgba(255,255,255,0.12); border:none; color:white; padding:5px 12px; border-radius:6px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.82rem; }
+
+  /* MAIN */
+  main { padding:1.5rem; max-width:900px; margin:0 auto; }
+
+  /* CARDS */
+  .welcome-card {
+    background:var(--ink2); color:white; border-radius:16px;
+    padding:1.5rem 2rem; margin-bottom:1.5rem;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;
+  }
+  .welcome-title { font-family:'DM Serif Display',serif; font-size:1.4rem; }
+  .welcome-sub { font-size:0.82rem; opacity:0.7; margin-top:4px; }
+
+  .stats-row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-bottom:1.5rem; }
+  .stat-card { background:white; border-radius:12px; padding:1.2rem 1.4rem; box-shadow:var(--shadow); border-left:3px solid var(--border); }
+  .stat-card.accent { border-left-color:var(--accent); }
+  .stat-card.green { border-left-color:var(--green); }
+  .stat-card.gold { border-left-color:var(--gold); }
+  .stat-label { font-size:0.7rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#888; margin-bottom:6px; }
+  .stat-val { font-family:'DM Serif Display',serif; font-size:1.6rem; color:var(--ink); line-height:1; }
+  .stat-sub { font-size:0.72rem; color:#999; margin-top:4px; }
+
+  /* CONTRATO CARD */
+  .contrato-card {
+    background:white; border-radius:14px; box-shadow:var(--shadow);
+    margin-bottom:1.5rem; overflow:hidden;
+  }
+  .contrato-header {
+    background:var(--ink); color:white; padding:1rem 1.4rem;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:0.5rem;
+  }
+  .contrato-titulo { font-family:'DM Serif Display',serif; font-size:1.1rem; }
+  .contrato-body { padding:1.2rem 1.4rem; }
+  .contrato-info { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0.75rem; margin-bottom:1.2rem; }
+  .info-item label { font-size:0.68rem; font-weight:600; letter-spacing:.07em; text-transform:uppercase; color:#999; display:block; margin-bottom:2px; }
+  .info-item span { font-size:0.88rem; color:var(--ink); font-weight:500; }
+
+  /* PAGOS TABLE */
+  .section-title { font-family:'DM Serif Display',serif; font-size:1rem; margin-bottom:0.75rem; padding-bottom:0.5rem; border-bottom:1.5px solid var(--border); }
+  .table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:0.83rem; }
+  thead { background:var(--ink); color:white; }
+  th { padding:0.6rem 0.8rem; text-align:left; font-size:0.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+  th.r, td.r { text-align:right; }
+  tbody tr { border-bottom:1px solid var(--border); transition:background 0.15s; }
+  tbody tr:last-child { border-bottom:none; }
+  tbody tr:hover { background:#faf7f2; }
+  td { padding:0.6rem 0.8rem; vertical-align:middle; }
+  tr.row-vencido td { background:#fff0f0; color:#721c24; }
+  tr.row-pagado td { background:#f0fff4; }
+  tr.row-futuro td { background:#f0f4ff; color:#555; }
+  tr.row-parcial td { background:#fff8e1; }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius:100px; font-size:0.68rem; font-weight:600; }
+  .badge-green { background:#d4edda; color:#155724; }
+  .badge-red { background:#f8d7da; color:#721c24; }
+  .badge-yellow { background:#fff3cd; color:#856404; }
+  .badge-blue { background:#cce5ff; color:#004085; }
+  .badge-gray { background:#e9ecef; color:#495057; }
+
+  .saldo-pend { color:var(--accent); font-weight:700; }
+  .saldo-ok { color:var(--green); font-weight:600; }
+
+  /* ALERTA */
+  .alerta-pend {
+    background:#fff0f0; border:1.5px solid #f8d7da; border-radius:10px;
+    padding:1rem 1.2rem; margin-bottom:1rem;
+    display:flex; align-items:center; gap:0.75rem;
+  }
+  .alerta-pend .icon { font-size:1.4rem; }
+  .alerta-pend p { font-size:0.85rem; color:#721c24; }
+  .alerta-pend strong { font-size:1rem; }
+
+  /* TOAST */
+  .toast { position:fixed; bottom:2rem; right:2rem; background:var(--ink); color:white; padding:0.8rem 1.4rem; border-radius:8px; font-size:0.85rem; z-index:999; animation:toastIn 0.3s ease; box-shadow:var(--shadow-lg); }
+  .toast.success { border-left:3px solid var(--green); }
+  .toast.error { border-left:3px solid var(--accent); }
+  @keyframes toastIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
+
+  .loading { text-align:center; padding:3rem; color:#aaa; font-style:italic; }
+  .empty { text-align:center; padding:2rem; color:#aaa; }
+
+  @media(max-width:600px) { main { padding:1rem; } .welcome-card { padding:1rem; } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div><span class="login-logo-dot"></span><span class="login-logo-title">MeGa Consultora</span></div>
+      <div class="login-logo-sub">Portal del Inquilino</div>
+    </div>
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="switchTab('login',this)">Ingresar</button>
+      <button class="login-tab" onclick="switchTab('registro',this)">Registrarse</button>
+    </div>
+    <div id="login-panel" class="login-form">
+      <input type="email" id="login-email" placeholder="Email" autocomplete="off">
+      <input type="password" id="login-pass" placeholder="Contraseña">
+      <button class="login-btn" onclick="doLogin()">Ingresar</button>
+      <div id="login-msg"></div>
+    </div>
+    <div id="registro-panel" class="login-form" style="display:none">
+      <input type="text" id="reg-nombre" placeholder="Nombre completo">
+      <input type="email" id="reg-email" placeholder="Email">
+      <input type="password" id="reg-pass" placeholder="Contraseña (mínimo 6 caracteres)">
+      <button class="login-btn" onclick="doRegistro()">Crear cuenta</button>
+      <div id="registro-msg"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<header>
+  <div class="logo"><div class="logo-dot"></div>Mi Alquiler</div>
+  <div class="header-right">
+    <span id="user-name" style="opacity:0.8"></span>
+    <button class="salir-btn" onclick="doLogout()">Salir</button>
+  </div>
+</header>
+
+<main id="app-content" style="display:none">
+  <div id="loading" class="loading">Cargando tus datos...</div>
+  <div id="content" style="display:none"></div>
+</main>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const SB_URL = 'https://hpufcseedvdmcoamundr.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhwdWZjc2VlZHZkbWNvYW11bmRyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwMjU5NTQsImV4cCI6MjA5MzYwMTk1NH0.x91y_KKcuqM3CXCNTsMxTmJvi8HIm4SsxxNKUaX12d0';
+const SB_AUTH = SB_URL + '/auth/v1';
+
+function getArgentinaDate() {
+  const now = new Date();
+  const ar = new Date(now.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+  return ar.toISOString().split('T')[0];
+}
+const TODAY = getArgentinaDate();
+
+let currentUser = null;
+let userToken = SB_KEY;
+
+function getHeaders(token) {
+  return {
+    'apikey': SB_KEY,
+    'Authorization': `Bearer ${token || userToken}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+async function sbGet(table, params='', token) {
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`, {
+    headers: { ...getHeaders(token), 'Range': '0-9999' }
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ============================================================
+// AUTH
+// ============================================================
+async function checkSession() {
+  const token = localStorage.getItem('inq_token');
+  const email = localStorage.getItem('inq_email');
+  if (!token || !email) { showLogin(); return; }
+  userToken = token;
+  currentUser = { token, email };
+  await cargarApp();
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass = document.getElementById('login-pass').value;
+  if (!email || !pass) { showMsg('login','Completá email y contraseña','error'); return; }
+  try {
+    const r = await fetch(`${SB_AUTH}/token?grant_type=password`, {
+      method:'POST',
+      headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error_description || 'Error al ingresar');
+
+    userToken = data.access_token;
+    currentUser = { token: data.access_token, email: data.user.email };
+    localStorage.setItem('inq_token', data.access_token);
+    localStorage.setItem('inq_email', data.user.email);
+
+    // Verify user is approved
+    const usuarios = await sbGet('usuarios', `email=eq.${encodeURIComponent(email)}&select=*`, data.access_token);
+    if (!usuarios.length || !usuarios[0].aprobado) {
+      showMsg('login', 'Tu cuenta está pendiente de aprobación por la inmobiliaria.', 'warn');
+      return;
+    }
+    // Check it's an inquilino (not admin trying to log into wrong portal)
+    if (usuarios[0].rol === 'admin') {
+      showMsg('login', 'Esta sección es para inquilinos. Los administradores ingresan por el sistema de gestión.', 'warn');
+      return;
+    }
+
+    await cargarApp();
+  } catch(e) {
+    showMsg('login', 'Email o contraseña incorrectos', 'error');
+  }
+}
+
+async function doRegistro() {
+  const nombre = document.getElementById('reg-nombre').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  if (!nombre || !email || !pass) { showMsg('registro','Completá todos los campos','error'); return; }
+  if (pass.length < 6) { showMsg('registro','La contraseña debe tener al menos 6 caracteres','error'); return; }
+  try {
+    const r = await fetch(`${SB_AUTH}/signup`, {
+      method:'POST',
+      headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' },
+      body: JSON.stringify({ email, password: pass })
+    });
+    if (!r.ok) throw new Error('Error al registrarse');
+    // Insert into usuarios as pending inquilino
+    await fetch(`${SB_URL}/rest/v1/usuarios`, {
+      method:'POST',
+      headers:{ 'apikey':SB_KEY, 'Authorization':`Bearer ${SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' },
+      body: JSON.stringify({ email, nombre, aprobado:false, admin:false, rol:'inquilino' })
+    });
+    showMsg('registro', '✓ Cuenta creada. La inmobiliaria verificará tus datos y te habilitará el acceso.', 'success');
+  } catch(e) {
+    showMsg('registro', e.message, 'error');
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('inq_token');
+  localStorage.removeItem('inq_email');
+  currentUser = null;
+  userToken = SB_KEY;
+  document.getElementById('app-content').style.display = 'none';
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-pass').value = '';
+  showLogin();
+}
+
+function showLogin() { document.getElementById('login-screen').style.display = 'flex'; }
+function hideLogin() { document.getElementById('login-screen').style.display = 'none'; }
+function showMsg(panel, msg, type) {
+  const el = document.getElementById(panel+'-msg');
+  el.textContent = msg; el.className = 'login-msg '+type;
+}
+function switchTab(tab, btn) {
+  document.querySelectorAll('.login-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('login-panel').style.display = tab==='login'?'flex':'none';
+  document.getElementById('registro-panel').style.display = tab==='registro'?'flex':'none';
+}
+document.addEventListener('keydown', e => {
+  if (e.key==='Enter' && document.getElementById('login-screen').style.display!=='none') doLogin();
+});
+
+// ============================================================
+// APP
+// ============================================================
+async function cargarApp() {
+  hideLogin();
+  document.getElementById('app-content').style.display = 'block';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('content').style.display = 'none';
+
+  try {
+    // Get user info
+    const usuarios = await sbGet('usuarios', `email=eq.${encodeURIComponent(currentUser.email)}&select=*`);
+    const usuario = usuarios[0];
+    document.getElementById('user-name').textContent = usuario?.nombre || currentUser.email;
+
+    if (!usuario?.persona_id) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('content').innerHTML = `
+        <div style="text-align:center;padding:3rem">
+          <div style="font-size:2rem;margin-bottom:1rem">🏠</div>
+          <h2 style="font-family:'DM Serif Display',serif;margin-bottom:0.5rem">Tu cuenta está siendo configurada</h2>
+          <p style="color:#888;font-size:0.9rem">La inmobiliaria está vinculando tu usuario con tu contrato. En breve podrás ver tus datos.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Get contratos for this inquilino
+    const contratos = await sbGet('contratos', `inquilino_id=eq.${usuario.persona_id}&select=*&order=vigencia_desde.desc`);
+
+    if (!contratos.length) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      document.getElementById('content').innerHTML = `<div class="empty"><p>No encontramos contratos asociados a tu cuenta.</p></div>`;
+      return;
+    }
+
+    // Get pagos for all contratos
+    const hojas = contratos.map(c => c.hoja);
+    let todosPagos = [];
+    for (const hoja of hojas) {
+      const pagos = await sbGet('pagos', `hoja=eq.${encodeURIComponent(hoja)}&order=mes.asc`);
+      todosPagos = todosPagos.concat(pagos);
+    }
+
+    // Get extras
+    const pagoIds = todosPagos.map(p=>p.id).join(',');
+    let extras = [];
+    if (pagoIds) {
+      extras = await sbGet('pagos_extras', `pago_id=in.(${pagoIds})&order=id.asc`);
+    }
+    const extrasMap = {};
+    extras.forEach(e => {
+      if (!extrasMap[e.pago_id]) extrasMap[e.pago_id] = [];
+      extrasMap[e.pago_id].push(e);
+    });
+
+    renderApp(usuario, contratos, todosPagos, extrasMap);
+  } catch(e) {
+    document.getElementById('loading').innerHTML = `<p style="color:var(--accent)">Error al cargar datos: ${e.message}</p>`;
+  }
+}
+
+function renderApp(usuario, contratos, todosPagos, extrasMap) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+
+  // Global stats
+  const pendientes = todosPagos.filter(p => p.saldo && p.saldo > 0 && p.mes && p.mes.substring(0,7) <= TODAY.substring(0,7));
+  const totalDeuda = pendientes.reduce((s,p) => s+(p.saldo||0), 0);
+  const contratoVigente = contratos.find(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY);
+
+  let html = `
+    <div class="welcome-card">
+      <div>
+        <div class="welcome-title">Hola, ${usuario.nombre?.split(' ')[0] || 'bienvenido'} 👋</div>
+        <div class="welcome-sub">Acá podés ver el estado de tu alquiler</div>
+      </div>
+      <div style="font-size:0.78rem;opacity:0.6">${new Date().toLocaleDateString('es-AR',{timeZone:'America/Argentina/Buenos_Aires',weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card green">
+        <div class="stat-label">Contratos</div>
+        <div class="stat-val">${contratos.length}</div>
+        <div class="stat-sub">${contratoVigente ? '✓ Vigente' : 'Sin contrato vigente'}</div>
+      </div>
+      <div class="stat-card ${totalDeuda > 0 ? 'accent' : 'green'}">
+        <div class="stat-label">Saldo pendiente</div>
+        <div class="stat-val" style="font-size:${totalDeuda>999999?'1.1rem':'1.6rem'}">${formatMoney(totalDeuda)}</div>
+        <div class="stat-sub">${pendientes.length} cuota${pendientes.length!==1?'s':''} sin pagar</div>
+      </div>
+      <div class="stat-card gold">
+        <div class="stat-label">Próximo vencimiento</div>
+        <div class="stat-val" style="font-size:1rem">${proximoVencimiento(contratos)}</div>
+      </div>
+    </div>
+  `;
+
+  // Alert if has debt
+  if (totalDeuda > 0) {
+    html += `
+      <div class="alerta-pend">
+        <div class="icon">⚠️</div>
+        <div>
+          <strong>Tenés ${pendientes.length} cuota${pendientes.length!==1?'s':''} pendiente${pendientes.length!==1?'s':''}</strong>
+          <p>Total adeudado: ${formatMoney(totalDeuda)}. Comunicate con la inmobiliaria para regularizar.</p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Each contrato
+  contratos.forEach(c => {
+    const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja).sort((a,b) => a.mes?.localeCompare(b.mes));
+    const pendientesContrato = pagosContrato.filter(p => p.saldo && p.saldo > 0 && p.mes && p.mes.substring(0,7) <= TODAY.substring(0,7));
+    const totalPend = pendientesContrato.reduce((s,p)=>s+(p.saldo||0),0);
+    const est = c.vigencia_hasta && c.vigencia_hasta >= TODAY ? 'vigente' : 'vencido';
+
+    html += `
+      <div class="contrato-card">
+        <div class="contrato-header">
+          <div>
+            <div class="contrato-titulo">${c.titulo || c.hoja}</div>
+            <div style="font-size:0.78rem;opacity:0.7;margin-top:2px">${normTipo(c.tipo_inmueble)}</div>
+          </div>
+          <span class="badge ${est==='vigente'?'badge-green':'badge-gray'}">${est}</span>
+        </div>
+        <div class="contrato-body">
+          <div class="contrato-info">
+            <div class="info-item"><label>Propietario</label><span>${c.locador||'—'}</span></div>
+            <div class="info-item"><label>Vigencia</label><span>${formatDate(c.vigencia_desde,true)} → ${formatDate(c.vigencia_hasta,true)}</span></div>
+            <div class="info-item"><label>Modalidad</label><span>${c.modalidad_pago||'—'}</span></div>
+            <div class="info-item"><label>Actualización</label><span>${c.periodicidad_actualizacion||'—'}${c.indice_actualizacion?' · '+c.indice_actualizacion:''}</span></div>
+            ${c.servicios_inquilino ? `<div class="info-item"><label>A tu cargo</label><span>${c.servicios_inquilino}</span></div>` : ''}
+            <div class="info-item"><label>Saldo pendiente</label><span class="${totalPend>0?'saldo-pend':'saldo-ok'}">${totalPend>0?formatMoney(totalPend):'✓ Al día'}</span></div>
+          </div>
+
+          <div class="section-title">Detalle de pagos</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Mes</th>
+                <th>Vence</th>
+                <th class="r">Alquiler</th>
+                <th class="r">EPE</th>
+                <th class="r">Agua</th>
+                <th class="r">TGIU</th>
+                <th class="r">Seguro</th>
+                <th class="r">Extras</th>
+                <th class="r">Total</th>
+                <th class="r">Saldo</th>
+                <th>Estado</th>
+              </tr></thead>
+              <tbody>
+                ${pagosContrato.map(p => {
+                  const esFuturo = p.mes && p.mes.substring(0,7) > TODAY.substring(0,7);
+                  const pend = !esFuturo && p.saldo && p.saldo > 0;
+                  const pagado = !p.saldo || p.saldo === 0;
+                  const rowClass = esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
+                  const extras = extrasMap[p.id] || [];
+                  const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
+                  const extrasLabel = extras.length > 0 ? extras.map(e=>`${e.concepto}: ${formatMoney(e.importe)}`).join(', ') : '—';
+
+                  return `<tr class="${rowClass}">
+                    <td><strong>${formatDate(p.mes)}</strong></td>
+                    <td style="white-space:nowrap">${formatDate(p.fecha_pago_hasta,true)}</td>
+                    <td class="r">${p.importe_alquiler>0?formatMoney(p.importe_alquiler):'—'}</td>
+                    <td class="r">${p.monto_epe>0?formatMoney(p.monto_epe):'—'}</td>
+                    <td class="r">${p.monto_agua>0?formatMoney(p.monto_agua):'—'}</td>
+                    <td class="r">${p.monto_tgiu>0?formatMoney(p.monto_tgiu):'—'}</td>
+                    <td class="r">${p.monto_seguro>0?formatMoney(p.monto_seguro):'—'}</td>
+                    <td class="r" title="${extrasLabel}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${totalExtras>0?formatMoney(totalExtras):'—'}</td>
+                    <td class="r"><strong>${formatMoney(p.total)}</strong></td>
+                    <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
+                    <td>${esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
+                  </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  document.getElementById('content').innerHTML = html;
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function formatDate(d, showDay=false) {
+  if (!d) return '—';
+  const [y,m,day] = d.substring(0,10).split('-');
+  const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  return showDay ? `${parseInt(day)} ${months[parseInt(m)-1]} ${y}` : `${months[parseInt(m)-1]} ${y}`;
+}
+
+function formatMoney(n) {
+  if (n == null || isNaN(n)) return '—';
+  return '$ ' + Math.round(n).toLocaleString('es-AR');
+}
+
+function normTipo(t) {
+  if (!t || t==='nan') return 'Inmueble';
+  const l = t.toLowerCase();
+  if (l.includes('casa')||l.includes('vivienda')||l.includes('habitaci')) return 'Casa/Habitación';
+  if (l.includes('dpto')||l.includes('departamento')) return 'Departamento';
+  if (l.includes('local')||l.includes('comercial')) return 'Local Comercial';
+  if (l.includes('galp')||l.includes('depósito')) return 'Galpón/Depósito';
+  return t;
+}
+
+function proximoVencimiento(contratos) {
+  const vigentes = contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY);
+  if (!vigentes.length) return '—';
+  vigentes.sort((a,b) => a.vigencia_hasta.localeCompare(b.vigencia_hasta));
+  const d = Math.round((new Date(vigentes[0].vigencia_hasta) - new Date(TODAY)) / 86400000);
+  return d <= 30 ? `⚠ en ${d} días` : formatDate(vigentes[0].vigencia_hasta, true);
+}
+
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ============================================================
+// START
+// ============================================================
+checkSession();
+</script>
+</body>
+</html>
