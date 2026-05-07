@@ -348,19 +348,7 @@ async function cargarApp() {
       return;
     }
 
-    // Get contratos for this inquilino only
-    if (!usuario.persona_id) {
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('content').style.display = 'block';
-      document.getElementById('content').innerHTML = `
-        <div style="text-align:center;padding:3rem">
-          <div style="font-size:2rem;margin-bottom:1rem">🏠</div>
-          <h2 style="font-family:'DM Serif Display',serif;margin-bottom:0.5rem">Tu cuenta está siendo configurada</h2>
-          <p style="color:#888;font-size:0.9rem">La inmobiliaria está vinculando tu usuario con tu contrato. En breve podrás ver tus datos.</p>
-        </div>
-      `;
-      return;
-    }
+    // Get contratos for this inquilino
     const contratos = await sbGet('contratos', `inquilino_id=eq.${usuario.persona_id}&select=*&order=vigencia_desde.desc`);
 
     if (!contratos.length) {
@@ -370,14 +358,12 @@ async function cargarApp() {
       return;
     }
 
-    // Get pagos only for this inquilino's contratos
+    // Get pagos for all contratos
     const hojas = contratos.map(c => c.hoja);
     let todosPagos = [];
-    if (hojas.length > 0) {
-      for (const hoja of hojas) {
-        const pagos = await sbGet('pagos', `hoja=eq.${encodeURIComponent(hoja)}&order=mes.asc`);
-        todosPagos = todosPagos.concat(pagos);
-      }
+    for (const hoja of hojas) {
+      const pagos = await sbGet('pagos', `hoja=eq.${encodeURIComponent(hoja)}&order=mes.asc`);
+      todosPagos = todosPagos.concat(pagos);
     }
 
     // Get extras
