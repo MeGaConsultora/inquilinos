@@ -499,7 +499,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
 
   // Each contrato
   contratos.forEach(c => {
-    const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja).sort((a,b) => a.mes?.localeCompare(b.mes));
+    const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja).sort((a,b) => (b.mes||'').localeCompare(a.mes||''));
     const pendientesContrato = pagosContrato.filter(p => p.saldo && p.saldo > 0 && p.mes && p.mes.substring(0,7) <= TODAY.substring(0,7));
     const totalPend = pendientesContrato.reduce((s,p)=>s+(p.saldo||0),0);
     const est = c.vigencia_hasta && c.vigencia_hasta >= TODAY ? 'vigente' : 'vencido';
@@ -603,8 +603,15 @@ function proximoVencimiento(contratos) {
   const vigentes = contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY);
   if (!vigentes.length) return '—';
   vigentes.sort((a,b) => a.vigencia_hasta.localeCompare(b.vigencia_hasta));
-  const d = Math.round((new Date(vigentes[0].vigencia_hasta) - new Date(TODAY)) / 86400000);
-  return d <= 30 ? `⚠ en ${d} días` : formatDate(vigentes[0].vigencia_hasta, true);
+  const venc = vigentes[0].vigencia_hasta.substring(0,10);
+  const hoy = TODAY.substring(0,10);
+  // Calculate days difference correctly
+  const d1 = new Date(venc + 'T12:00:00');
+  const d2 = new Date(hoy + 'T12:00:00');
+  const d = Math.round((d1 - d2) / 86400000);
+  if (d === 0) return '¡Vence hoy!';
+  if (d < 0) return `Venció hace ${-d} días`;
+  return d <= 60 ? `${formatDate(venc,true)} (${d} días)` : formatDate(venc, true);
 }
 
 function toast(msg, type='success') {
