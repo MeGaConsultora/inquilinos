@@ -270,6 +270,17 @@ async function sbGetWithRefresh(table, params='') {
 }
 
 async function checkSession() {
+  // Handle error redirects from Supabase (e.g. expired reset link)
+  const hash = window.location.hash;
+  if (hash.includes('error=') || hash.includes('error_code=')) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    showLogin();
+    setTimeout(() => {
+      const msg = document.getElementById('login-msg');
+      if (msg) { msg.textContent = 'El link expiró o es inválido. Solicitá uno nuevo.'; msg.className = 'login-msg error'; }
+    }, 100);
+    return;
+  }
   const token = localStorage.getItem('inq_token');
   const email = localStorage.getItem('inq_email');
   if (!token || !email) { showLogin(); return; }
@@ -352,8 +363,16 @@ function doLogout() {
   currentUser = null;
   userToken = SB_KEY;
   document.getElementById('app-content').style.display = 'none';
-  document.getElementById('login-email').value = '';
-  document.getElementById('login-pass').value = '';
+  document.getElementById('content').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('loading').textContent = 'Cargando...';
+  // Clear email/pass fields
+  const emailEl = document.getElementById('login-email');
+  const passEl = document.getElementById('login-pass');
+  if (emailEl) emailEl.value = '';
+  if (passEl) passEl.value = '';
+  // Clear URL hash
+  window.history.replaceState({}, document.title, window.location.pathname);
   showLogin();
 }
 
