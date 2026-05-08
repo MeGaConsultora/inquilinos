@@ -171,7 +171,7 @@
       <input type="email" id="forgot-email" placeholder="Tu email" autocomplete="off">
       <button class="login-btn" onclick="doForgot()">Enviar link</button>
       <div style="text-align:center;margin-top:0.5rem">
-        <button onclick="showLogin()" style="background:none;border:none;color:#999;font-size:0.8rem;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif">← Volver</button>
+        <button onclick="showLoginPanel()" style="background:none;border:none;color:#999;font-size:0.8rem;cursor:pointer;text-decoration:underline;font-family:'DM Sans',sans-serif">← Volver</button>
       </div>
       <div id="forgot-msg"></div>
     </div>
@@ -397,7 +397,7 @@ function showForgot() {
   document.querySelectorAll('.login-tab').forEach(b=>b.classList.remove('active'));
 }
 
-function showLogin() {
+function showLoginPanel() {
   document.getElementById('login-panel').style.display = 'flex';
   document.getElementById('forgot-panel').style.display = 'none';
   document.querySelectorAll('.login-tab')[0].classList.add('active');
