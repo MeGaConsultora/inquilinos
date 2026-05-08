@@ -236,14 +236,52 @@ async function sbGet(table, params='', token) {
 // ============================================================
 // AUTH
 // ============================================================
+async function refreshToken() {
+  const refreshTk = localStorage.getItem('inq_refresh_token');
+  if (!refreshTk) return false;
+  try {
+    const r = await fetch(`${SB_AUTH}/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshTk })
+    });
+    if (!r.ok) return false;
+    const data = await r.json();
+    userToken = data.access_token;
+    currentUser.token = data.access_token;
+    localStorage.setItem('inq_token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('inq_refresh_token', data.refresh_token);
+    return true;
+  } catch(e) { return false; }
+}
+
+async function sbGetWithRefresh(table, params='') {
+  try {
+    return await sbGet(table, params);
+  } catch(e) {
+    // Try refreshing token on JWT expired error
+    if (e.message.includes('JWT') || e.message.includes('expired')) {
+      const ok = await refreshToken();
+      if (ok) return await sbGet(table, params);
+      doLogout();
+    }
+    throw e;
+  }
+}
+
 async function checkSession() {
   const token = localStorage.getItem('inq_token');
   const email = localStorage.getItem('inq_email');
   if (!token || !email) { showLogin(); return; }
   userToken = token;
   currentUser = { token, email };
+  // Try to refresh token proactively
+  await refreshToken();
   await cargarApp();
 }
+
+// Auto-refresh token every 45 minutes
+setInterval(refreshToken, 45 * 60 * 1000);
 
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
@@ -262,9 +300,10 @@ async function doLogin() {
     currentUser = { token: data.access_token, email: data.user.email };
     localStorage.setItem('inq_token', data.access_token);
     localStorage.setItem('inq_email', data.user.email);
+    if (data.refresh_token) localStorage.setItem('inq_refresh_token', data.refresh_token);
 
     // Verify user is approved
-    const usuarios = await sbGet('usuarios', `email=eq.${encodeURIComponent(email)}&select=*`, data.access_token);
+    const usuarios = await sbGetWithRefresh('usuarios', `email=eq.${encodeURIComponent(email)}&select=*`, data.access_token);
     if (!usuarios.length || !usuarios[0].aprobado) {
       showMsg('login', 'Tu cuenta está pendiente de aprobación por la inmobiliaria.', 'warn');
       return;
@@ -309,6 +348,7 @@ async function doRegistro() {
 function doLogout() {
   localStorage.removeItem('inq_token');
   localStorage.removeItem('inq_email');
+  localStorage.removeItem('inq_refresh_token');
   currentUser = null;
   userToken = SB_KEY;
   document.getElementById('app-content').style.display = 'none';
@@ -381,7 +421,7 @@ async function cargarApp() {
 
   try {
     // Get user info
-    const usuarios = await sbGet('usuarios', `email=eq.${encodeURIComponent(currentUser.email)}&select=*`);
+    const usuarios = await sbGetWithRefresh('usuarios', `email=eq.${encodeURIComponent(currentUser.email)}&select=*`);
     const usuario = usuarios[0];
     document.getElementById('user-name').textContent = usuario?.nombre || currentUser.email;
 
@@ -411,7 +451,7 @@ async function cargarApp() {
       `;
       return;
     }
-    const contratos = await sbGet('contratos', `inquilino_id=eq.${usuario.persona_id}&select=*&order=vigencia_desde.desc`);
+    const contratos = await sbGetWithRefresh('contratos', `inquilino_id=eq.${usuario.persona_id}&select=*&order=vigencia_desde.desc`);
 
     if (!contratos.length) {
       document.getElementById('loading').style.display = 'none';
