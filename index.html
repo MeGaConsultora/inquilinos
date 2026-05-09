@@ -179,6 +179,7 @@
       <input type="text" id="reg-nombre" placeholder="Nombre completo">
       <input type="email" id="reg-email" placeholder="Email">
       <input type="password" id="reg-pass" placeholder="Contraseña (mínimo 6 caracteres)">
+      <input type="text" id="reg-dni" placeholder="DNI (sin puntos)" inputmode="numeric">
       <button class="login-btn" onclick="doRegistro()">Crear cuenta</button>
       <div id="registro-msg"></div>
     </div>
@@ -335,6 +336,7 @@ async function doRegistro() {
   const nombre = document.getElementById('reg-nombre').value.trim();
   const email = document.getElementById('reg-email').value.trim();
   const pass = document.getElementById('reg-pass').value;
+  const dni = document.getElementById('reg-dni').value.trim().replace(/\./g,'');
   if (!nombre || !email || !pass) { showMsg('registro','Completá todos los campos','error'); return; }
   if (pass.length < 6) { showMsg('registro','La contraseña debe tener al menos 6 caracteres','error'); return; }
   try {
@@ -343,16 +345,19 @@ async function doRegistro() {
       headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' },
       body: JSON.stringify({ email, password: pass })
     });
-    if (!r.ok) throw new Error('Error al registrarse');
-    // Insert into usuarios as pending inquilino
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error_description || 'Error al registrarse');
+
+    // Insert into usuarios - approved by default, will auto-link by DNI
     await fetch(`${SB_URL}/rest/v1/usuarios`, {
       method:'POST',
       headers:{ 'apikey':SB_KEY, 'Authorization':`Bearer ${SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' },
-      body: JSON.stringify({ email, nombre, aprobado:false, admin:false, rol:'inquilino' })
+      body: JSON.stringify({ email, nombre, aprobado:true, admin:false, rol:'inquilino', user_id: data.user?.id||null })
     });
-    showMsg('registro', '✓ Cuenta creada. La inmobiliaria verificará tus datos y te habilitará el acceso.', 'success');
+
+    showMsg('registro', '✓ Cuenta creada. Revisá tu email para confirmar tu cuenta y poder ingresar.', 'success');
   } catch(e) {
-    showMsg('registro', e.message, 'error');
+    showMsg('registro', e.message==='User already registered' ? 'Este email ya está registrado.' : e.message, 'error');
   }
 }
 
@@ -636,6 +641,37 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
 // ============================================================
 // HELPERS
 // ============================================================
+async function vincularPorDNI(usuarioId) {
+  const dni = document.getElementById('dni-vinc')?.value.trim().replace(/\./g,'');
+  if (!dni || dni.length < 6) {
+    alert('Ingresá un DNI válido');
+    return;
+  }
+  try {
+    // Search persona by DNI
+    const r = await fetch(`${SB_URL}/rest/v1/personas?dni=eq.${encodeURIComponent(dni)}&select=id,apellido,nombre&limit=5`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${userToken}` }
+    });
+    const personas = await r.json();
+    if (!personas.length) {
+      alert('No encontramos ninguna persona con ese DNI. Comunicate con la inmobiliaria.');
+      return;
+    }
+    // Link user to persona
+    const persona = personas[0];
+    await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${usuarioId}`, {
+      method: 'PATCH',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ persona_id: persona.id })
+    });
+    toast(`✓ Cuenta vinculada con ${persona.apellido}, ${persona.nombre}`);
+    // Reload app
+    await cargarApp();
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 function formatDate(d, showDay=false) {
   if (!d) return '—';
   const [y,m,day] = d.substring(0,10).split('-');
