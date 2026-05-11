@@ -267,8 +267,9 @@ async function sbGetWithRefresh(table, params='') {
 }
 
 async function checkSession() {
-  // Handle error redirects from Supabase (e.g. expired reset link)
   const hash = window.location.hash;
+
+  // Handle error redirects
   if (hash.includes('error=') || hash.includes('error_code=')) {
     window.history.replaceState({}, document.title, window.location.pathname);
     showLogin();
@@ -278,6 +279,18 @@ async function checkSession() {
     }, 100);
     return;
   }
+
+  // Handle password recovery link
+  if (hash.includes('type=recovery') || hash.includes('type=invite')) {
+    const params = new URLSearchParams(hash.replace('#',''));
+    const accessToken = params.get('access_token');
+    if (accessToken) {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      mostrarFormularioNuevaContrasena(accessToken);
+      return;
+    }
+  }
+
   const token = localStorage.getItem('inq_token');
   const email = localStorage.getItem('inq_email');
   if (!token || !email) { showLogin(); return; }
@@ -665,6 +678,60 @@ async function vincularPorDNI(usuarioId) {
     await cargarApp();
   } catch(e) {
     alert('Error: ' + e.message);
+  }
+}
+
+function mostrarFormularioNuevaContrasena(accessToken) {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app-content').style.display = 'none';
+  
+  // Hide tabs, show only password form
+  document.querySelector('.login-tabs').style.display = 'none';
+  document.getElementById('login-panel').style.display = 'none';
+  document.getElementById('registro-panel').style.display = 'none';
+  document.getElementById('forgot-panel').style.display = 'none';
+
+  const card = document.querySelector('.login-card');
+  const newPanel = document.createElement('div');
+  newPanel.id = 'nueva-pass-panel';
+  newPanel.className = 'login-form';
+  newPanel.innerHTML = `
+    <p style="font-size:0.88rem;color:#444;text-align:center;margin-bottom:1rem">Elegí tu nueva contraseña para acceder al portal.</p>
+    <input type="password" id="nueva-pass" placeholder="Nueva contraseña (mínimo 6 caracteres)">
+    <input type="password" id="nueva-pass-confirm" placeholder="Repetir contraseña">
+    <button class="login-btn" onclick="guardarNuevaContrasena('${accessToken}')">Guardar contraseña</button>
+    <div id="nueva-pass-msg"></div>
+  `;
+  card.appendChild(newPanel);
+}
+
+async function guardarNuevaContrasena(accessToken) {
+  const pass = document.getElementById('nueva-pass').value;
+  const confirm = document.getElementById('nueva-pass-confirm').value;
+  const msg = document.getElementById('nueva-pass-msg');
+  
+  if (pass.length < 6) { msg.textContent = 'Mínimo 6 caracteres'; msg.className = 'login-msg error'; return; }
+  if (pass !== confirm) { msg.textContent = 'Las contraseñas no coinciden'; msg.className = 'login-msg error'; return; }
+
+  try {
+    const r = await fetch(`${SB_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pass })
+    });
+    if (!r.ok) throw new Error('Error al guardar');
+    msg.textContent = '✓ Contraseña guardada. Iniciá sesión.'; 
+    msg.className = 'login-msg success';
+    // Show login after 2 seconds
+    setTimeout(() => {
+      document.getElementById('nueva-pass-panel')?.remove();
+      document.querySelector('.login-tabs').style.display = 'flex';
+      document.getElementById('login-panel').style.display = 'flex';
+      document.querySelectorAll('.login-tab')[0].classList.add('active');
+    }, 2000);
+  } catch(e) {
+    msg.textContent = 'Error al guardar la contraseña. Intentá de nuevo.';
+    msg.className = 'login-msg error';
   }
 }
 
