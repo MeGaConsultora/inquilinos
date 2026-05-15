@@ -142,7 +142,7 @@
 
   @media(max-width:600px) { main { padding:1rem; } .welcome-card { padding:1rem; } }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
 
@@ -347,7 +347,7 @@ async function verBoletaInq(pagoId) {
     document.body.appendChild(modal);
 
     // Render page
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
     const pdfDoc = await pdfjsLib.getDocument(signedUrl).promise;
     const page = await pdfDoc.getPage(pdfRec.pdf_pagina);
     const viewport = page.getViewport({ scale: 1.5 });
@@ -708,7 +708,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
                     <td class="r"><strong>${formatMoney(p.total)}</strong></td>
                     <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
                     <td>${esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
-                    <td>${p.pdf_path ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
+                    <td>${window._inqPagosPdf?.[p.id]?.length ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
                   </tr>`;
                 }).join('')}
               </tbody>
