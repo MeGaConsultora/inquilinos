@@ -350,13 +350,16 @@ async function verBoletaInq(pagoId) {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
     const pdfDoc = await pdfjsLib.getDocument(signedUrl).promise;
     const page = await pdfDoc.getPage(pdfRec.pdf_pagina);
-    const viewport = page.getViewport({ scale: 1.5 });
+    const wrap = document.getElementById('boleta-canvas-wrap');
+    const containerWidth = wrap ? wrap.clientWidth - 16 : 700;
+    const baseViewport = page.getViewport({ scale: 1 });
+    const scale = containerWidth / baseViewport.width;
+    const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    canvas.style.cssText = 'width:100%;height:auto';
+    canvas.style.cssText = 'width:100%;height:auto;display:block';
     await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    const wrap = document.getElementById('boleta-canvas-wrap');
     if (wrap) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
   } catch(e) {
     alert('Error al cargar la boleta: ' + e.message);
