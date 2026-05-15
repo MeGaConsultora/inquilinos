@@ -352,15 +352,31 @@ async function verBoletaInq(pagoId) {
     const page = await pdfDoc.getPage(pdfRec.pdf_pagina);
     const wrap = document.getElementById('boleta-canvas-wrap');
     const containerWidth = wrap ? wrap.clientWidth - 16 : 700;
+    const dpr = window.devicePixelRatio || 1;
     const baseViewport = page.getViewport({ scale: 1 });
     const scale = containerWidth / baseViewport.width;
     const viewport = page.getViewport({ scale });
     const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    canvas.width = viewport.width * dpr;
+    canvas.height = viewport.height * dpr;
     canvas.style.cssText = 'width:100%;height:auto;display:block';
-    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    await page.render({ canvasContext: ctx, viewport }).promise;
     if (wrap) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
+    // Update download link to single page image
+    try {
+      const dlCanvas = document.createElement('canvas');
+      const dlViewport = page.getViewport({ scale: 2 });
+      dlCanvas.width = dlViewport.width;
+      dlCanvas.height = dlViewport.height;
+      await page.render({ canvasContext: dlCanvas.getContext('2d'), viewport: dlViewport }).promise;
+      dlCanvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const dlLink = modal.querySelector('a[download]');
+        if (dlLink) { dlLink.href = url; dlLink.download = 'boleta.png'; }
+      }, 'image/png');
+    } catch(e) {}
   } catch(e) {
     alert('Error al cargar la boleta: ' + e.message);
   }
