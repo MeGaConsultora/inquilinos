@@ -586,8 +586,9 @@ async function cargarApp() {
           if (!window._inqPagosPdf[r.pago_id]) window._inqPagosPdf[r.pago_id] = [];
           window._inqPagosPdf[r.pago_id].push(r);
         });
-      } catch(e) {}
+      } catch(e) { console.error('Error loading pagos_pdf:', e); }
     }
+    console.log('pagos_pdf loaded:', Object.keys(window._inqPagosPdf).length, 'pagos con PDF');
 
     renderApp(usuario, contratos, todosPagos, extrasMap);
   } catch(e) {
@@ -685,6 +686,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
                 <th class="r">Total</th>
                 <th class="r">Saldo</th>
                 <th>Estado</th>
+                <th></th>
               </tr></thead>
               <tbody>
                 ${pagosContrato.map(p => {
