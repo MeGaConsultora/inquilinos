@@ -142,6 +142,7 @@
 
   @media(max-width:600px) { main { padding:1rem; } .welcome-card { padding:1rem; } }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -299,6 +300,67 @@ async function checkSession() {
   // Try to refresh token proactively
   await refreshToken();
   await cargarApp();
+}
+
+async function verBoletaInq(pagoId) {
+  // Query pagos_pdf table for this pago
+  let pdfs = [];
+  try {
+    const resp = await fetch(`${SB_URL}/rest/v1/pagos_pdf?pago_id=eq.${pagoId}&order=servicio.asc`,
+      { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+    pdfs = await resp.json();
+  } catch(e) {}
+
+  if (!pdfs.length) { alert('No hay boleta disponible para este período.'); return; }
+
+  // If multiple services, show selector
+  let pdfRec = pdfs[0];
+  if (pdfs.length > 1) {
+    const srv = prompt(`Hay ${pdfs.length} boletas disponibles. Elegí el servicio:\n${pdfs.map((p,i)=>`${i+1}. ${p.servicio.toUpperCase()}`).join('\n')}\n\nIngresá el número:`);
+    const idx = parseInt(srv) - 1;
+    if (idx >= 0 && idx < pdfs.length) pdfRec = pdfs[idx];
+  }
+
+  try {
+    // Get signed URL
+    const resp = await fetch(`${SB_URL}/storage/v1/object/sign/servicios/${pdfRec.pdf_path}`,
+      { method: 'POST', headers: { 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn: 3600 }) });
+    const data = await resp.json();
+    const signedUrl = data.signedURL ? `${SB_URL}/storage/v1${data.signedURL}` : null;
+    if (!signedUrl) throw new Error('No se pudo obtener URL');
+
+    // Show modal with PDF page
+    const modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:1rem;overflow-y:auto';
+    modal.innerHTML = `
+      <div style="background:white;border-radius:12px;width:100%;max-width:700px;overflow:hidden">
+        <div style="background:#1a1a2e;color:white;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-weight:700">📄 Boleta</span>
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;color:white;font-size:1.2rem;cursor:pointer">✕</button>
+        </div>
+        <div id="boleta-canvas-wrap" style="padding:1rem;text-align:center;color:#888">⏳ Cargando...</div>
+        <div style="padding:1rem;text-align:center">
+          <a href="${signedUrl}" download style="background:#e63946;color:white;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:0.88rem">⬇ Descargar</a>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    // Render page
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdfDoc = await pdfjsLib.getDocument(signedUrl).promise;
+    const page = await pdfDoc.getPage(pdfRec.pdf_pagina);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.cssText = 'width:100%;height:auto';
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const wrap = document.getElementById('boleta-canvas-wrap');
+    if (wrap) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
+  } catch(e) {
+    alert('Error al cargar la boleta: ' + e.message);
+  }
 }
 
 // Auto-refresh token every 45 minutes
@@ -515,6 +577,18 @@ async function cargarApp() {
       extrasMap[e.pago_id].push(e);
     });
 
+    // Load pagos_pdf for PDF buttons
+    window._inqPagosPdf = {};
+    if (pagoIds) {
+      try {
+        const pdfData = await sbGet('pagos_pdf', `pago_id=in.(${pagoIds})`);
+        pdfData.forEach(r => {
+          if (!window._inqPagosPdf[r.pago_id]) window._inqPagosPdf[r.pago_id] = [];
+          window._inqPagosPdf[r.pago_id].push(r);
+        });
+      } catch(e) {}
+    }
+
     renderApp(usuario, contratos, todosPagos, extrasMap);
   } catch(e) {
     document.getElementById('loading').innerHTML = `<p style="color:var(--accent)">Error al cargar datos: ${e.message}</p>`;
@@ -634,6 +708,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
                     <td class="r"><strong>${formatMoney(p.total)}</strong></td>
                     <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
                     <td>${esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
+                    <td>${p.pdf_path ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
                   </tr>`;
                 }).join('')}
               </tbody>
