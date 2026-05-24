@@ -867,7 +867,7 @@ function formatDate(d, showDay=false) {
 
 function formatMoney(n) {
   if (n == null || isNaN(n)) return '—';
-  return '$ ' + Math.round(n).toLocaleString('es-AR');
+  return '<span style="white-space:nowrap">$ ' + Math.round(n).toLocaleString('es-AR') + '</span>';
 }
 
 function normTipo(t) {
