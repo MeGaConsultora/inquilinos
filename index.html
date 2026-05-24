@@ -395,13 +395,9 @@ setInterval(async () => {
       headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${currentUser.token}` }
     });
     const us = await r.json();
-    if (r.ok && Array.isArray(us) && us.length > 0 && us[0].aprobado === false) {
-      localStorage.removeItem('sb_token');
-      localStorage.removeItem('sb_email');
-      currentUser = null;
-      showMsg('login', 'Tu acceso ha sido revocado.', 'error');
-      document.getElementById('app-section').style.display = 'none';
-      document.getElementById('login-section').style.display = 'flex';
+    if (r.ok && Array.isArray(us) && us.length > 0 && !us[0].aprobado) {
+      doLogout();
+      showMsg('login', 'Tu acceso ha sido revocado por la administración.', 'error');
     }
   } catch(e) {}
 }, 30 * 1000);
