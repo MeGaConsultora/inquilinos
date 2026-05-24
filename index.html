@@ -434,10 +434,75 @@ async function doLogin() {
       return;
     }
 
+    // If logging in with temp password, force password change
+    if (usuarios[0].temp_password && pass === usuarios[0].temp_password) {
+      mostrarFormularioCambioContrasena(data.access_token, usuarios[0].id);
+      return;
+    }
+
     await cargarApp();
   } catch(e) {
     showMsg('login', 'Email o contraseña incorrectos', 'error');
   }
+}
+
+async function mostrarFormularioCambioContrasena(token, usuarioId) {
+  // Show a password change overlay before entering the app
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app-content').style.display = 'block';
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('content').innerHTML = `
+    <div style="max-width:420px;margin:4rem auto;background:white;border-radius:16px;padding:2rem;box-shadow:0 4px 24px rgba(0,0,0,0.1)">
+      <div style="font-size:2rem;text-align:center;margin-bottom:1rem">🔑</div>
+      <h2 style="font-family:'DM Serif Display',serif;text-align:center;margin-bottom:0.5rem">Cambiá tu contraseña</h2>
+      <p style="color:#888;font-size:0.88rem;text-align:center;margin-bottom:1.5rem">Por seguridad, necesitás cambiar tu contraseña temporal antes de continuar.</p>
+      <div style="display:flex;flex-direction:column;gap:1rem">
+        <div>
+          <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:4px">Nueva contraseña</label>
+          <input type="password" id="nueva-pass" placeholder="Mínimo 6 caracteres" autocomplete="new-password"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.9rem">
+        </div>
+        <div>
+          <label style="font-size:0.82rem;color:#666;display:block;margin-bottom:4px">Confirmar contraseña</label>
+          <input type="password" id="confirmar-pass" placeholder="Repetí la contraseña" autocomplete="new-password"
+            style="width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:0.9rem">
+        </div>
+        <div id="cambio-pass-msg" style="font-size:0.82rem;display:none"></div>
+        <button onclick="confirmarCambioContrasena('${token}','${usuarioId}')"
+          style="background:var(--green);color:white;border:none;border-radius:8px;padding:12px;font-size:0.95rem;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif">
+          Guardar contraseña
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function confirmarCambioContrasena(token, usuarioId) {
+  const nueva = document.getElementById('nueva-pass').value;
+  const confirmar = document.getElementById('confirmar-pass').value;
+  const msg = document.getElementById('cambio-pass-msg');
+  if (nueva.length < 6) { msg.textContent = 'La contraseña debe tener al menos 6 caracteres'; msg.style.color = 'var(--accent)'; msg.style.display = 'block'; return; }
+  if (nueva !== confirmar) { msg.textContent = 'Las contraseñas no coinciden'; msg.style.color = 'var(--accent)'; msg.style.display = 'block'; return; }
+  try {
+    // Update password in Supabase Auth
+    const r = await fetch(`${SB_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: nueva })
+    });
+    if (!r.ok) { const d = await r.json(); throw new Error(d.message || 'Error al cambiar contraseña'); }
+    // Clear temp_password from usuarios table
+    await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${usuarioId}`, {
+      method: 'PATCH',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ temp_password: null })
+    });
+    msg.textContent = '✓ Contraseña guardada. Ingresando...';
+    msg.style.color = 'var(--green)';
+    msg.style.display = 'block';
+    setTimeout(() => cargarApp(), 1000);
+  } catch(e) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--accent)'; msg.style.display = 'block'; }
 }
 
 async function doRegistro() {
