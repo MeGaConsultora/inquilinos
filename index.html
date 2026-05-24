@@ -882,18 +882,28 @@ function normTipo(t) {
 
 function proximoVencimientoMes(contratos, todosPagos) {
   const hoy = TODAY.substring(0,10);
+  const hoyDate = new Date(hoy + 'T12:00:00');
   let proximaFecha = null;
 
   contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
     const diaVenc = c.dia_vencimiento || 10;
     // Find next unpaid month from today onwards
-    const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja && p.mes >= TODAY.substring(0,7));
-    pagosContrato.sort((a,b) => a.mes.localeCompare(b.mes));
+    const pagosContrato = todosPagos
+      .filter(p => p.hoja === c.hoja && p.mes && p.mes.substring(0,7) >= TODAY.substring(0,7))
+      .sort((a,b) => a.mes.localeCompare(b.mes));
     for (const p of pagosContrato) {
-      const mesKey = p.mes.substring(0,7);
       if ((!p.pagado || p.pagado === '0') && p.total > 0) {
+        const mesKey = p.mes.substring(0,7);
         const fechaVenc = mesKey + '-' + String(diaVenc).padStart(2,'0');
-        if (!proximaFecha || fechaVenc < proximaFecha) proximaFecha = fechaVenc;
+        const fechaVencDate = new Date(fechaVenc + 'T12:00:00');
+        // If due date already passed, move to next month
+        let fechaFinal = fechaVenc;
+        if (fechaVencDate < hoyDate) {
+          const d = new Date(fechaVencDate);
+          d.setMonth(d.getMonth() + 1);
+          fechaFinal = d.toISOString().substring(0,10);
+        }
+        if (!proximaFecha || fechaFinal < proximaFecha) proximaFecha = fechaFinal;
         break;
       }
     }
@@ -901,8 +911,7 @@ function proximoVencimientoMes(contratos, todosPagos) {
 
   if (!proximaFecha) return '—';
   const d1 = new Date(proximaFecha + 'T12:00:00');
-  const d2 = new Date(hoy + 'T12:00:00');
-  const dias = Math.round((d1 - d2) / 86400000);
+  const dias = Math.round((d1 - hoyDate) / 86400000);
   return `${formatDate(proximaFecha, true)}${dias >= 0 ? ' ('+dias+' días)' : ''}`;
 }
 
