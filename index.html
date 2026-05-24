@@ -647,7 +647,9 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
       <div>
         <div class="welcome-title">Hola, ${(() => {
           const n = usuario.nombre || '';
-          return (n.split(' ')[0] || usuario.email.split('@')[0]);
+          // Handle "APELLIDO, Nombre" format
+          if (n.includes(',')) return n.split(',')[1]?.trim().split(' ')[0] || n;
+          return n.split(' ')[0] || usuario.email.split('@')[0];
         })()} 👋</div>
         <div class="welcome-sub">Acá podés ver el estado de tu alquiler</div>
       </div>
