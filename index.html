@@ -387,6 +387,25 @@ async function verBoletaInq(pagoId) {
 // Auto-refresh token every 45 minutes
 setInterval(refreshToken, 45 * 60 * 1000);
 
+// Check approval status every 30 seconds
+setInterval(async () => {
+  if (!currentUser?.email || !currentUser?.token) return;
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/usuarios?email=eq.${encodeURIComponent(currentUser.email)}&select=aprobado`, {
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${currentUser.token}` }
+    });
+    const us = await r.json();
+    if (r.ok && Array.isArray(us) && us.length > 0 && us[0].aprobado === false) {
+      localStorage.removeItem('sb_token');
+      localStorage.removeItem('sb_email');
+      currentUser = null;
+      showMsg('login', 'Tu acceso ha sido revocado.', 'error');
+      document.getElementById('app-section').style.display = 'none';
+      document.getElementById('login-section').style.display = 'flex';
+    }
+  } catch(e) {}
+}, 30 * 1000);
+
 async function doLogin() {
   const email = document.getElementById('login-email').value.trim();
   const pass = document.getElementById('login-pass').value;
