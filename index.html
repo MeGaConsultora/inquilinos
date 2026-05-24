@@ -77,6 +77,7 @@
   .stat-card.accent { border-left-color:var(--accent); }
   .stat-card.green { border-left-color:var(--green); }
   .stat-card.gold { border-left-color:var(--gold); }
+  .stat-card.purple { border-left-color:#9b59b6; }
   .stat-label { font-size:0.7rem; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:#888; margin-bottom:6px; }
   .stat-val { font-family:'DM Serif Display',serif; font-size:1.6rem; color:var(--ink); line-height:1; }
   .stat-sub { font-size:0.72rem; color:#999; margin-top:4px; }
@@ -644,7 +645,10 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
   let html = `
     <div class="welcome-card">
       <div>
-        <div class="welcome-title">Hola, ${usuario.nombre?.split(' ')[0] || 'bienvenido'} 👋</div>
+        <div class="welcome-title">Hola, ${(() => {
+          const n = usuario.nombre || '';
+          return (n.split(' ')[0] || usuario.email.split('@')[0]);
+        })()} 👋</div>
         <div class="welcome-sub">Acá podés ver el estado de tu alquiler</div>
       </div>
       <div style="font-size:0.78rem;opacity:0.6">${new Date().toLocaleDateString('es-AR',{timeZone:'America/Argentina/Buenos_Aires',weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
@@ -663,7 +667,11 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
       </div>
       <div class="stat-card gold">
         <div class="stat-label">Próximo vencimiento</div>
-        <div class="stat-val" style="font-size:1rem">${proximoVencimiento(contratos)}</div>
+        <div class="stat-val" style="font-size:1rem">${proximoVencimientoMes(contratos, todosPagos)}</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="stat-label">Vigencia hasta</div>
+        <div class="stat-val" style="font-size:1rem">${vigenciaHasta(contratos)}</div>
       </div>
     </div>
   `;
@@ -870,19 +878,41 @@ function normTipo(t) {
   return t;
 }
 
-function proximoVencimiento(contratos) {
+function proximoVencimientoMes(contratos, todosPagos) {
+  const hoy = TODAY.substring(0,10);
+  let proximaFecha = null;
+
+  contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
+    const diaVenc = c.dia_vencimiento || 10;
+    // Find next unpaid month from today onwards
+    const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja && p.mes >= TODAY.substring(0,7));
+    pagosContrato.sort((a,b) => a.mes.localeCompare(b.mes));
+    for (const p of pagosContrato) {
+      const mesKey = p.mes.substring(0,7);
+      if ((!p.pagado || p.pagado === '0') && p.total > 0) {
+        const fechaVenc = mesKey + '-' + String(diaVenc).padStart(2,'0');
+        if (!proximaFecha || fechaVenc < proximaFecha) proximaFecha = fechaVenc;
+        break;
+      }
+    }
+  });
+
+  if (!proximaFecha) return '—';
+  const d1 = new Date(proximaFecha + 'T12:00:00');
+  const d2 = new Date(hoy + 'T12:00:00');
+  const dias = Math.round((d1 - d2) / 86400000);
+  return `${formatDate(proximaFecha, true)}${dias >= 0 ? ' ('+dias+' días)' : ''}`;
+}
+
+function vigenciaHasta(contratos) {
   const vigentes = contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY);
   if (!vigentes.length) return '—';
-  vigentes.sort((a,b) => a.vigencia_hasta.localeCompare(b.vigencia_hasta));
+  vigentes.sort((a,b) => b.vigencia_hasta.localeCompare(a.vigencia_hasta));
   const venc = vigentes[0].vigencia_hasta.substring(0,10);
-  const hoy = TODAY.substring(0,10);
-  // Calculate days difference correctly
   const d1 = new Date(venc + 'T12:00:00');
-  const d2 = new Date(hoy + 'T12:00:00');
-  const d = Math.round((d1 - d2) / 86400000);
-  if (d === 0) return '¡Vence hoy!';
-  if (d < 0) return `Venció hace ${-d} días`;
-  return d <= 60 ? `${formatDate(venc,true)} (${d} días)` : formatDate(venc, true);
+  const d2 = new Date(TODAY.substring(0,10) + 'T12:00:00');
+  const meses = Math.round((d1 - d2) / (86400000 * 30));
+  return `${formatDate(venc, true)}${meses > 0 ? ' ('+meses+' meses)' : ''}`;
 }
 
 function toast(msg, type='success') {
