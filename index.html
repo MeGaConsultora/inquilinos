@@ -773,7 +773,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
   }
 
   // Each contrato
-  contratos.forEach(c => {
+  contratos.filter(c => !c.fecha_rescision && c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
     const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja).sort((a,b) => (b.mes||'').localeCompare(a.mes||''));
     const pendientesContrato = pagosContrato.filter(p => p.saldo && p.saldo > 0 && p.mes && p.mes.substring(0,7) <= TODAY.substring(0,7));
     const totalPend = pendientesContrato.reduce((s,p)=>s+(p.saldo||0),0);
@@ -837,7 +837,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
                     <td class="r"><strong>${formatMoney(p.total)}</strong></td>
                     <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
                     <td>${esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
-                    <td>${window._inqPagosPdf?.[+p.id]?.length ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
+                    <td>${window._inqPagosPdf?.[+p.id]?.length ? `<button onclick="verBoletaInq(${p.id})" style="background:#e3f2fd;border:1.5px solid #1976d2;border-radius:6px;padding:4px 10px;font-size:0.85rem;cursor:pointer;color:#1976d2;font-weight:700" title="Ver boleta adjunta">📄</button>` : ''}</td>
                   </tr>`;
                 }).join('')}
               </tbody>
