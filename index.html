@@ -330,11 +330,19 @@ async function verBoletaInq(pagoId) {
     await new Promise(resolve => {
       const div = document.createElement('div');
       div.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999';
-      const btns = pdfs.map(r => `<button data-srv="${r.servicio}" style="display:block;width:100%;padding:12px 16px;margin:6px 0;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:1rem;background:white">${labels[r.servicio]||r.servicio.toUpperCase()}</button>`).join('');
+      const btns = pdfs.map(r => {
+        let label = labels[r.servicio] || r.servicio.toUpperCase();
+        // Para múltiples EPE, mostrar el nro de cuenta si está disponible en el path
+        if (r.servicio === 'epe' && r.pdf_path) {
+          const m = r.pdf_path.match(/(\d{5,9})\.pdf$/);
+          if (m) label += ` (${m[1]})`;
+        }
+        return `<button data-id="${r.id}" style="display:block;width:100%;padding:12px 16px;margin:6px 0;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:1rem;background:white">${label}</button>`;
+      }).join('');
       div.innerHTML = `<div style="background:white;border-radius:12px;padding:1.5rem;text-align:center;min-width:220px;max-width:90vw"><div style="font-weight:700;margin-bottom:1rem;font-size:1rem">¿Qué boleta querés ver?</div>${btns}<button id="boleta-cancelar" style="margin-top:8px;padding:8px 20px;border:none;background:#eee;border-radius:8px;cursor:pointer;font-size:0.9rem">Cancelar</button></div>`;
-      div.querySelectorAll('[data-srv]').forEach(btn => {
+      div.querySelectorAll('[data-id]').forEach(btn => {
         btn.onclick = () => {
-          pdfRec = pdfs.find(p => p.servicio === btn.dataset.srv) || pdfs[0];
+          pdfRec = pdfs.find(p => p.id === parseInt(btn.dataset.id)) || pdfs[0];
           div.remove();
           resolve();
         };
