@@ -846,7 +846,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
                   const rowClass = esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
                   const extras = extrasMap[p.id] || [];
                   const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
-                  const extrasLabel = extras.length > 0 ? extras.map(e=>`${e.concepto}: ${formatMoney(e.importe)}`).join(', ') : '—';
+                  const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: ${formatMoney(e.importe)}`).join(', ') : '—';
 
                   return `<tr class="${rowClass}">
                     <td><strong>${formatDate(p.mes)}</strong></td>
