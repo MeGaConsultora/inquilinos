@@ -956,7 +956,11 @@ async function guardarNuevaContrasena(accessToken) {
       headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: pass })
     });
-    if (!r.ok) throw new Error('Error al guardar');
+    if (!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      console.error('Error real al actualizar contraseña (status ' + r.status + '):', errData);
+      throw new Error(errData.msg || errData.error_description || errData.error || ('Error ' + r.status));
+    }
     msg.textContent = '✓ Contraseña guardada. Iniciá sesión.'; 
     msg.className = 'login-msg success';
     // Show login after 2 seconds
@@ -967,7 +971,7 @@ async function guardarNuevaContrasena(accessToken) {
       document.querySelectorAll('.login-tab')[0].classList.add('active');
     }, 2000);
   } catch(e) {
-    msg.textContent = 'Error al guardar la contraseña. Intentá de nuevo.';
+    msg.textContent = 'Error al guardar la contraseña: ' + e.message;
     msg.className = 'login-msg error';
   }
 }
