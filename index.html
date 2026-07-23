@@ -750,7 +750,12 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
     return diaHoy > diaVenc;
   });
   const totalDeuda = pendientes.reduce((s,p) => s+(p.saldo||0), 0);
-  const contratoVigente = contratos.find(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY);
+  const getEstadoPortal = c => {
+    if (c.fecha_rescision) return 'rescindido';
+    if (!c.vigencia_hasta) return 'vigente'; // indefinido: se trata como vigente/activo
+    return c.vigencia_hasta >= TODAY ? 'vigente' : 'vencido';
+  };
+  const contratoVigente = contratos.find(c => getEstadoPortal(c) === 'vigente');
 
   let html = `
     <div class="welcome-card">
@@ -769,7 +774,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
     <div class="stats-row">
       <div class="stat-card green">
         <div class="stat-label">Contratos</div>
-        <div class="stat-val">${contratos.length}</div>
+        <div class="stat-val">${contratos.filter(c => getEstadoPortal(c)==='vigente').length}</div>
         <div class="stat-sub">${contratoVigente ? '✓ Vigente' : 'Sin contrato vigente'}</div>
       </div>
       <div class="stat-card ${totalDeuda > 0 ? 'accent' : 'green'}">
@@ -805,21 +810,27 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
     `;
   }
 
-  // Each contrato
-  contratos.forEach(c => {
+  // Separar vigentes de finalizados (vencidos + rescindidos) — se muestran
+  // en dos secciones distintas, no mezcladas.
+  const contratosVigentes = contratos.filter(c => getEstadoPortal(c) === 'vigente');
+  const contratosFinalizados = contratos.filter(c => getEstadoPortal(c) !== 'vigente');
+
+  const renderContratoCard = c => {
     const pagosContrato = todosPagos.filter(p => p.hoja === c.hoja).sort((a,b) => (b.mes||'').localeCompare(a.mes||''));
     const pendientesContrato = pagosContrato.filter(p => p.saldo && p.saldo > 0 && p.mes && p.mes.substring(0,7) <= TODAY.substring(0,7));
     const totalPend = pendientesContrato.reduce((s,p)=>s+(p.saldo||0),0);
-    const est = c.vigencia_hasta && c.vigencia_hasta >= TODAY ? 'vigente' : 'vencido';
+    const est = getEstadoPortal(c);
+    const estLabel = est === 'rescindido' ? 'rescindido' : est === 'vencido' ? 'vencido' : 'vigente';
+    const badgeClass = est === 'vigente' ? 'badge-green' : 'badge-gray';
 
-    html += `
+    return `
       <div class="contrato-card">
         <div class="contrato-header">
           <div>
             <div class="contrato-titulo">${c.titulo || c.hoja}</div>
             <div style="font-size:0.78rem;opacity:0.7;margin-top:2px">${normTipo(c.tipo_inmueble)}</div>
           </div>
-          <span class="badge ${est==='vigente'?'badge-green':'badge-gray'}">${est}</span>
+          <span class="badge ${badgeClass}">${estLabel}</span>
         </div>
         <div class="contrato-body">
           <div class="contrato-info">
@@ -879,7 +890,19 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
         </div>
       </div>
     `;
-  });
+  };
+
+  html += contratosVigentes.map(renderContratoCard).join('');
+
+  if (contratosFinalizados.length) {
+    html += `
+      <div class="section-title" style="margin-top:1.5rem;opacity:0.7">Contratos finalizados</div>
+    `;
+    html += contratosFinalizados
+      .sort((a,b) => (b.vigencia_hasta||'').localeCompare(a.vigencia_hasta||''))
+      .map(c => `<div style="opacity:0.75">${renderContratoCard(c)}</div>`)
+      .join('');
+  }
 
   document.getElementById('content').innerHTML = html;
 }
@@ -1003,7 +1026,7 @@ function proximoVencimientoMes(contratos, todosPagos) {
   const hoyDate = new Date(hoy + 'T12:00:00');
   let proximaFecha = null;
 
-  contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
+  contratos.filter(c => !c.fecha_rescision && c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
     const diaVenc = c.dia_vencimiento || 10;
     // Find next unpaid month from today onwards
     const pagosContrato = todosPagos
@@ -1034,9 +1057,9 @@ function proximoVencimientoMes(contratos, todosPagos) {
 }
 
 function vigenciaHasta(contratos) {
-  const vigentes = contratos.filter(c => c.vigencia_hasta && c.vigencia_hasta >= TODAY);
+  const vigentes = contratos.filter(c => !c.fecha_rescision && c.vigencia_hasta && c.vigencia_hasta >= TODAY);
   if (!vigentes.length) return '—';
-  vigentes.sort((a,b) => b.vigencia_hasta.localeCompare(a.vigencia_hasta));
+  vigentes.sort((a,b) => a.vigencia_hasta.localeCompare(b.vigencia_hasta));
   const venc = vigentes[0].vigencia_hasta.substring(0,10);
   const d1 = new Date(venc + 'T12:00:00');
   const d2 = new Date(TODAY.substring(0,10) + 'T12:00:00');
