@@ -894,7 +894,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
 
                   return `<tr class="${rowClass}">
                     <td><strong>${formatDate(p.mes)}</strong></td>
-                    <td style="white-space:nowrap">${formatDate(p.fecha_pago_hasta,true)}</td>
+                    <td style="white-space:nowrap">${formatDate(calcularFechaVencimientoPortal(p.mes.substring(0,7), c), true)}</td>
                     <td class="r">${p.importe_alquiler>0?formatMoney(p.importe_alquiler):'—'}</td>
                     <td class="r">${p.monto_epe>0?formatMoney(p.monto_epe):'—'}</td>
                     <td class="r">${p.monto_agua>0?formatMoney(p.monto_agua):'—'}</td>
@@ -1050,39 +1050,40 @@ function normTipo(t) {
   return t;
 }
 
+function calcularFechaVencimientoPortal(mesKey, contrato) {
+  // Réplica exacta de calcularFechaVencimiento del admin — el día real de
+  // vencimiento se calcula a partir de la configuración ACTUAL del contrato
+  // (dia_vencimiento + modalidad_pago), no del campo fecha_pago_hasta
+  // guardado en cada pago, que puede quedar desactualizado si el día de
+  // vencimiento del contrato cambió en algún momento.
+  const [y, m] = mesKey.split('-').map(Number);
+  const dia = contrato.dia_vencimiento || 10;
+  const modalidad = contrato.modalidad_pago || 'ADELANTADO';
+  let vencYear = y, vencMonth = m;
+  if (modalidad === 'VENCIDO') {
+    vencMonth = m + 1;
+    if (vencMonth > 12) { vencMonth = 1; vencYear++; }
+  }
+  return `${vencYear}-${String(vencMonth).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+}
+
 function proximoVencimientoMes(contratos, todosPagos) {
-  const hoy = TODAY.substring(0,10);
-  const hoyDate = new Date(hoy + 'T12:00:00');
   let proximaFecha = null;
 
   contratos.filter(c => !c.fecha_rescision && c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
-    const diaVenc = c.dia_vencimiento || 10;
-    // Find next unpaid month from today onwards
-    const pagosContrato = todosPagos
-      .filter(p => p.hoja === c.hoja && p.mes && p.mes.substring(0,7) >= TODAY.substring(0,7))
-      .sort((a,b) => a.mes.localeCompare(b.mes));
-    for (const p of pagosContrato) {
-      if ((!p.pagado || p.pagado === '0') && p.total > 0) {
-        const mesKey = p.mes.substring(0,7);
-        const fechaVenc = mesKey + '-' + String(diaVenc).padStart(2,'0');
-        const fechaVencDate = new Date(fechaVenc + 'T12:00:00');
-        // If due date already passed, move to next month
-        let fechaFinal = fechaVenc;
-        if (fechaVencDate < hoyDate) {
-          const d = new Date(fechaVencDate);
-          d.setMonth(d.getMonth() + 1);
-          fechaFinal = d.toISOString().substring(0,10);
-        }
-        if (!proximaFecha || fechaFinal < proximaFecha) proximaFecha = fechaFinal;
-        break;
-      }
-    }
+    const pagosPendientes = todosPagos.filter(p => p.hoja === c.hoja && p.saldo && p.saldo > 0 && p.mes);
+    pagosPendientes.forEach(p => {
+      const fecha = calcularFechaVencimientoPortal(p.mes.substring(0,7), c);
+      if (!proximaFecha || fecha < proximaFecha) proximaFecha = fecha;
+    });
   });
 
   if (!proximaFecha) return '—';
+  const hoy = TODAY.substring(0,10);
+  const hoyDate = new Date(hoy + 'T12:00:00');
   const d1 = new Date(proximaFecha + 'T12:00:00');
   const dias = Math.round((d1 - hoyDate) / 86400000);
-  return `${formatDate(proximaFecha, true)}${dias >= 0 ? ' ('+dias+' días)' : ''}`;
+  return `${formatDate(proximaFecha, true)}${dias >= 0 ? ' ('+dias+' días)' : ' (vencido)'}`;
 }
 
 function vigenciaHasta(contratos) {
