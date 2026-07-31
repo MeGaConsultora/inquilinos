@@ -917,10 +917,17 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
               </tr></thead>
               <tbody>
                 ${pagosContrato.map(p => {
-                  const esFuturo = p.mes && p.mes.substring(0,7) > TODAY.substring(0,7);
-                  const pend = !esFuturo && p.saldo && p.saldo > 0;
-                  const pagado = !p.saldo || p.saldo === 0;
-                  const rowClass = esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
+                  // Un mes con cargo ($ total > 0) y saldo en 0 está pagado,
+                  // incluso si es un mes futuro (pago adelantado) — antes,
+                  // "esFuturo" tenía prioridad y esos meses quedaban en azul
+                  // ("Futuro") en vez de verde ("Pagado") aunque ya estuvieran
+                  // saldados. Un mes futuro SIN cargo todavía (total=0, a la
+                  // espera de su actualización) sigue mostrándose como Futuro.
+                  const tieneCargo = (p.total || 0) > 0;
+                  const estaPagado = tieneCargo && (!p.saldo || p.saldo <= 0);
+                  const esFuturo = !estaPagado && p.mes && p.mes.substring(0,7) > TODAY.substring(0,7);
+                  const pend = !esFuturo && !estaPagado && p.saldo && p.saldo > 0;
+                  const rowClass = estaPagado ? 'row-pagado' : esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
                   const extras = extrasMap[p.id] || [];
                   const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
                   const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: $ ${Math.round(e.importe||0).toLocaleString('es-AR')}`).join(', ') : '—';
@@ -941,7 +948,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
                     <td class="r" title="${extrasLabel}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${totalExtras>0?formatMoney(totalExtras):'—'}</td>
                     <td class="r"><strong>${formatMoney(p.total)}</strong></td>
                     <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
-                    <td>${esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
+                    <td>${estaPagado?'<span class="badge badge-green">Pagado</span>':esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
                     <td>${window._inqPagosPdf?.[+p.id]?.length ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
                   </tr>`;
                 }).join('')}
