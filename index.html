@@ -750,15 +750,48 @@ async function cargarApp() {
     }
     console.log('pagos_pdf loaded:', Object.keys(window._inqPagosPdf).length, 'pagos con PDF');
 
-    renderApp(usuario, contratos, todosPagos, extrasMap);
+    // Load contrato_suministros + pagos_suministros — mismo modelo que usa la
+    // app de administración para EPE/Agua/TGIU/Seguro. Si no se cargan estos
+    // datos, las columnas de servicio del detalle mensual quedan mostrando
+    // los campos legados (monto_agua, etc.), que la app admin ya deja en 0
+    // para las cuentas migradas al modelo nuevo — apareciendo vacías acá
+    // aunque el total sí esté bien (el total se sincroniza aparte).
+    const contratoIds = contratos.map(c => c.id).join(',');
+    let suministros = [];
+    if (contratoIds) {
+      try {
+        suministros = await sbGet('contrato_suministros', `contrato_id=in.(${contratoIds})&select=id,contrato_id,tipo`);
+      } catch(e) { console.error('Error loading contrato_suministros:', e); }
+    }
+    let pagosSuministros = [];
+    if (pagoIds) {
+      try {
+        pagosSuministros = await sbGet('pagos_suministros', `pago_id=in.(${pagoIds})&select=pago_id,suministro_id,importe`);
+      } catch(e) { console.error('Error loading pagos_suministros:', e); }
+    }
+
+    renderApp(usuario, contratos, todosPagos, extrasMap, suministros, pagosSuministros);
   } catch(e) {
     document.getElementById('loading').innerHTML = `<p style="color:var(--accent)">Error al cargar datos: ${e.message}</p>`;
   }
 }
 
-function renderApp(usuario, contratos, todosPagos, extrasMap) {
+function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pagosSuministros=[]) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('content').style.display = 'block';
+
+  // Importe de un servicio (epe/agua/tgiu/seguro) para un pago puntual.
+  // Prioriza pagos_suministros (modelo nuevo) si el contrato tiene suministro
+  // de ese tipo cargado; si no, cae al campo legado monto_xxx — mismo
+  // criterio que getTotalServiciosPago() en la app de administración.
+  const getImporteServicioPortal = (p, c, tipo) => {
+    const sumsSrv = suministros.filter(s => parseInt(s.contrato_id) === c.id && s.tipo === tipo);
+    if (sumsSrv.length > 0) {
+      const psSrv = pagosSuministros.filter(ps => ps.pago_id === p.id && sumsSrv.some(s => s.id === ps.suministro_id));
+      return psSrv.reduce((s, ps) => s + (ps.importe||0), 0);
+    }
+    return p['monto_'+tipo] || 0;
+  };
 
   // Global stats
   const pendientes = todosPagos.filter(p => {
@@ -892,14 +925,19 @@ function renderApp(usuario, contratos, todosPagos, extrasMap) {
                   const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
                   const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: $ ${Math.round(e.importe||0).toLocaleString('es-AR')}`).join(', ') : '—';
 
+                  const impEpe = getImporteServicioPortal(p, c, 'epe');
+                  const impAgua = getImporteServicioPortal(p, c, 'agua');
+                  const impTgiu = getImporteServicioPortal(p, c, 'tgiu');
+                  const impSeguro = getImporteServicioPortal(p, c, 'seguro');
+
                   return `<tr class="${rowClass}">
                     <td><strong>${formatDate(p.mes)}</strong></td>
                     <td style="white-space:nowrap">${formatDate(calcularFechaVencimientoPortal(p.mes.substring(0,7), c), true)}</td>
                     <td class="r">${p.importe_alquiler>0?formatMoney(p.importe_alquiler):'—'}</td>
-                    <td class="r">${p.monto_epe>0?formatMoney(p.monto_epe):'—'}</td>
-                    <td class="r">${p.monto_agua>0?formatMoney(p.monto_agua):'—'}</td>
-                    <td class="r">${p.monto_tgiu>0?formatMoney(p.monto_tgiu):'—'}</td>
-                    <td class="r">${p.monto_seguro>0?formatMoney(p.monto_seguro):'—'}</td>
+                    <td class="r">${impEpe>0?formatMoney(impEpe):'—'}</td>
+                    <td class="r">${impAgua>0?formatMoney(impAgua):'—'}</td>
+                    <td class="r">${impTgiu>0?formatMoney(impTgiu):'—'}</td>
+                    <td class="r">${impSeguro>0?formatMoney(impSeguro):'—'}</td>
                     <td class="r" title="${extrasLabel}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${totalExtras>0?formatMoney(totalExtras):'—'}</td>
                     <td class="r"><strong>${formatMoney(p.total)}</strong></td>
                     <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
