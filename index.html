@@ -732,10 +732,18 @@ async function cargarApp() {
       extras = await sbGet('pagos_extras', `pago_id=in.(${pagoIds})&order=id.asc`);
     }
     const extrasMap = {};
-    extras.forEach(e => {
-      if (!extrasMap[e.pago_id]) extrasMap[e.pago_id] = [];
-      extrasMap[e.pago_id].push(e);
-    });
+    extras
+      // Los extras "a cargo del propietario" (débitos/créditos contra el
+      // dueño, ej: descuentos de comisión, gastos que paga la inmobiliaria
+      // y le descuenta a él) NO le corresponden al inquilino — antes se
+      // mostraban igual acá aunque en la app admin no aparecieran del lado
+      // del inquilino. Mismo criterio que usa la app admin en todas partes:
+      // filtrar por a_cargo_de !== 'propietario'.
+      .filter(e => e.a_cargo_de !== 'propietario')
+      .forEach(e => {
+        if (!extrasMap[e.pago_id]) extrasMap[e.pago_id] = [];
+        extrasMap[e.pago_id].push(e);
+      });
 
     // Load pagos_pdf for PDF buttons
     window._inqPagosPdf = {};
