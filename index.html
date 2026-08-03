@@ -1121,18 +1121,32 @@ function calcularFechaVencimientoPortal(mesKey, contrato) {
 }
 
 function proximoVencimientoMes(contratos, todosPagos) {
-  let proximaFecha = null;
+  const hoy = TODAY.substring(0,10);
+  // Separar en "próximas" (todavía no vencieron) y "vencidas" (deuda atrasada,
+  // que ya se muestra aparte en el cartel de saldo pendiente). Antes esta
+  // tarjeta mostraba directo la fecha más antigua sin pagar, así que si había
+  // una cuota vieja impaga, tapaba el vencimiento real que se viene — mostraba
+  // "vencido" en vez del próximo pago que corresponde.
+  let proximaFutura = null;
+  let masAntiguaVencida = null;
 
   contratos.filter(c => !c.fecha_rescision && c.vigencia_hasta && c.vigencia_hasta >= TODAY).forEach(c => {
     const pagosPendientes = todosPagos.filter(p => p.hoja === c.hoja && p.saldo && p.saldo > 0 && p.mes);
     pagosPendientes.forEach(p => {
       const fecha = calcularFechaVencimientoPortal(p.mes.substring(0,7), c);
-      if (!proximaFecha || fecha < proximaFecha) proximaFecha = fecha;
+      if (fecha >= hoy) {
+        if (!proximaFutura || fecha < proximaFutura) proximaFutura = fecha;
+      } else {
+        if (!masAntiguaVencida || fecha < masAntiguaVencida) masAntiguaVencida = fecha;
+      }
     });
   });
 
+  // Si hay una próxima fecha real (no vencida), mostrar esa. Solo si TODA la
+  // deuda pendiente está vencida (no hay ningún vencimiento futuro cargado
+  // todavía) se muestra la más antigua vencida, para no dejar la tarjeta vacía.
+  const proximaFecha = proximaFutura || masAntiguaVencida;
   if (!proximaFecha) return '—';
-  const hoy = TODAY.substring(0,10);
   const hoyDate = new Date(hoy + 'T12:00:00');
   const d1 = new Date(proximaFecha + 'T12:00:00');
   const dias = Math.round((d1 - hoyDate) / 86400000);
