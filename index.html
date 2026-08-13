@@ -1077,6 +1077,25 @@ async function guardarNuevaContrasena(accessToken) {
       console.error('Error real al actualizar contraseña (status ' + r.status + '):', errData);
       throw new Error(errData.msg || errData.error_description || errData.error || ('Error ' + r.status));
     }
+    // Limpiar temp_password en la tabla usuarios — sin esto, la app de
+    // administración seguía pensando que había una contraseña temporal
+    // válida para reenviar (mostraba "Reenviar acceso" con datos viejos en
+    // vez del aviso de "ya cambió su contraseña"), porque este camino
+    // ("¿Olvidaste tu contraseña?") es distinto al del primer login forzado,
+    // que sí la limpia.
+    try {
+      const userInfoResp = await fetch(`${SB_URL}/auth/v1/user`, {
+        headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${accessToken}` }
+      });
+      const userInfo = await userInfoResp.json();
+      if (userInfo?.email) {
+        await fetch(`${SB_URL}/rest/v1/usuarios?email=eq.${encodeURIComponent(userInfo.email)}`, {
+          method: 'PATCH',
+          headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ temp_password: null })
+        });
+      }
+    } catch(e2) { console.warn('No se pudo limpiar temp_password:', e2); }
     msg.textContent = '✓ Contraseña guardada. Iniciá sesión.'; 
     msg.className = 'login-msg success';
     // Show login after 2 seconds
