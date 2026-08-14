@@ -320,48 +320,67 @@ async function checkSession() {
   await cargarApp();
 }
 
-async function verBoletaInq(pagoId) {
-  // Query pagos_pdf table for this pago
+async function verBoletaInq(pagoId, tipoPre, idPre) {
+  // Unifica dos fuentes de adjuntos para el mismo mes: las boletas de
+  // servicios (pagos_pdf, página específica dentro de un PDF más grande,
+  // se renderiza con pdf.js) y los comprobantes sueltos de extras a cargo
+  // del inquilino (pagos_extras.archivo_path, un archivo autónomo — foto o
+  // PDF completo, se abre directo).
   let pdfs = [];
   try {
     const resp = await fetch(`${SB_URL}/rest/v1/pagos_pdf?pago_id=eq.${pagoId}&order=servicio.asc`,
       { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
     pdfs = await resp.json();
   } catch(e) {}
+  const extrasConArchivo = ((window._extrasMapPortal || {})[pagoId] || []).filter(e => e.archivo_path);
 
-  if (!pdfs.length) { alert('No hay boleta disponible para este período.'); return; }
+  const labelsSrv = { epe: '⚡ EPE', agua: '💧 Agua', tgiu: '🏛️ TGIU', seguro: '🔒 Seguro', internet: '🌐 Internet', expensas: '🏢 Expensas' };
+  const items = [
+    ...pdfs.map(r => {
+      let label = labelsSrv[r.servicio] || r.servicio.toUpperCase();
+      if (r.servicio === 'epe' && r.pdf_path) {
+        const m = r.pdf_path.match(/(\d{5,9})\.pdf$/);
+        if (m) label += ` (${m[1]})`;
+      }
+      return { tipo: 'pdf', id: r.id, label, rec: r };
+    }),
+    ...extrasConArchivo.map(e => ({ tipo: 'extra', id: e.id, label: `🧾 ${e.concepto||'Extra'}`, rec: e }))
+  ];
 
-  // If multiple services, show selector
-  let pdfRec = pdfs[0];
-  if (pdfs.length > 1) {
-    const labels = { epe: '⚡ EPE', agua: '💧 Agua', tgiu: '🏛️ TGIU', seguro: '🔒 Seguro', internet: '🌐 Internet', expensas: '🏢 Expensas' };
-    await new Promise(resolve => {
+  if (!items.length) { alert('No hay documentos disponibles para este período.'); return; }
+
+  // Si se pidió un ítem concreto (desde el selector), abrirlo directo
+  let item = (tipoPre && idPre) ? items.find(i => i.tipo === tipoPre && i.id === idPre) : null;
+
+  // Varios documentos y no se eligió ninguno todavía: mostrar selector
+  if (!item && items.length > 1) {
+    item = await new Promise(resolve => {
       const div = document.createElement('div');
       div.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999';
-      const btns = pdfs.map(r => {
-        let label = labels[r.servicio] || r.servicio.toUpperCase();
-        // Para múltiples EPE, mostrar el nro de cuenta si está disponible en el path
-        if (r.servicio === 'epe' && r.pdf_path) {
-          const m = r.pdf_path.match(/(\d{5,9})\.pdf$/);
-          if (m) label += ` (${m[1]})`;
-        }
-        return `<button data-id="${r.id}" style="display:block;width:100%;padding:12px 16px;margin:6px 0;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:1rem;background:white">${label}</button>`;
-      }).join('');
-      div.innerHTML = `<div style="background:white;border-radius:12px;padding:1.5rem;text-align:center;min-width:220px;max-width:90vw"><div style="font-weight:700;margin-bottom:1rem;font-size:1rem">¿Qué boleta querés ver?</div>${btns}<button id="boleta-cancelar" style="margin-top:8px;padding:8px 20px;border:none;background:#eee;border-radius:8px;cursor:pointer;font-size:0.9rem">Cancelar</button></div>`;
+      const btns = items.map(i =>
+        `<button data-tipo="${i.tipo}" data-id="${i.id}" style="display:block;width:100%;padding:12px 16px;margin:6px 0;border:1px solid #ddd;border-radius:8px;cursor:pointer;font-size:1rem;background:white">${i.label}</button>`
+      ).join('');
+      div.innerHTML = `<div style="background:white;border-radius:12px;padding:1.5rem;text-align:center;min-width:220px;max-width:90vw"><div style="font-weight:700;margin-bottom:1rem;font-size:1rem">¿Qué documento querés ver?</div>${btns}<button id="boleta-cancelar" style="margin-top:8px;padding:8px 20px;border:none;background:#eee;border-radius:8px;cursor:pointer;font-size:0.9rem">Cancelar</button></div>`;
       div.querySelectorAll('[data-id]').forEach(btn => {
         btn.onclick = () => {
-          pdfRec = pdfs.find(p => p.id === parseInt(btn.dataset.id)) || pdfs[0];
+          const found = items.find(i => i.tipo === btn.dataset.tipo && i.id === parseInt(btn.dataset.id));
           div.remove();
-          resolve();
+          resolve(found || null);
         };
       });
       div.querySelector('#boleta-cancelar').onclick = () => { div.remove(); resolve(null); };
       div.onclick = e => { if (e.target === div) { div.remove(); resolve(null); } };
       document.body.appendChild(div);
     });
-    if (!pdfRec) return; // cancelled
+    if (!item) return; // cancelado
   }
+  if (!item) item = items[0]; // un solo documento en total
 
+  if (item.tipo === 'extra') return abrirComprobanteExtraInq(item.rec);
+  return abrirBoletaPdfInq(item.rec);
+}
+
+async function abrirBoletaPdfInq(pdfRec) {
   try {
     // Get signed URL
     const resp = await fetch(`${SB_URL}/storage/v1/object/sign/servicios/${pdfRec.pdf_path}`,
@@ -422,6 +441,14 @@ async function verBoletaInq(pagoId) {
   } catch(e) {
     alert('Error al cargar la boleta: ' + e.message);
   }
+}
+
+// Comprobante de un extra: archivo autónomo (foto o PDF completo) en el
+// bucket "contratos-archivos", de lectura pública — se abre directo, sin
+// necesidad de firmar la URL ni de renderizar nada con pdf.js.
+function abrirComprobanteExtraInq(extraRec) {
+  const url = `${SB_URL}/storage/v1/object/public/contratos-archivos/${extraRec.archivo_path}`;
+  window.open(url, '_blank');
 }
 
 // Auto-refresh token every 45 minutes
@@ -788,6 +815,7 @@ async function cargarApp() {
 function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pagosSuministros=[]) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('content').style.display = 'block';
+  window._extrasMapPortal = extrasMap;
 
   // Importe de un servicio (epe/agua/tgiu/seguro) para un pago puntual.
   // Prioriza pagos_suministros (modelo nuevo) si el contrato tiene suministro
@@ -950,7 +978,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
                   const rowClass = estaPagado ? 'row-pagado' : esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
                   const extras = extrasMap[p.id] || [];
                   const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
-                  const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: $ ${Math.round(e.importe||0).toLocaleString('es-AR')}`).join(', ') : '—';
+                  const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: $ ${Math.round(e.importe||0).toLocaleString('es-AR')}${e.archivo_path?' 📎':''}`).join(', ') : '—';
 
                   const impEpe = getImporteServicioPortal(p, c, 'epe');
                   const impAgua = getImporteServicioPortal(p, c, 'agua');
@@ -969,7 +997,7 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
                     <td class="r"><strong>${formatMoney(p.total)}</strong></td>
                     <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
                     <td>${estaPagado?'<span class="badge badge-green">Pagado</span>':esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
-                    <td>${window._inqPagosPdf?.[+p.id]?.length ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
+                    <td>${(window._inqPagosPdf?.[+p.id]?.length || extras.some(e=>e.archivo_path)) ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
                   </tr>`;
                 }).join('')}
               </tbody>
@@ -1123,6 +1151,10 @@ function formatMoney(n) {
   if (n == null || isNaN(n)) return '—';
   return '<span style="white-space:nowrap">$ ' + Number(n).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
 }
+
+// Detalle de los extras de un mes puntual, con link al comprobante cuando
+// hay uno adjunto — el bucket es de lectura pública, así que arma la URL
+// directo sin necesidad de pedir una firma.
 
 function normTipo(t) {
   if (!t || t==='nan') return 'Inmueble';
