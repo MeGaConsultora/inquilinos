@@ -178,6 +178,7 @@
     
     <div id="forgot-panel" class="login-form" style="display:none">
       <p style="font-size:0.82rem;color:#666;text-align:center">Ingresá tu email y te enviaremos un link para restablecer tu contraseña.</p>
+      <p style="font-size:0.76rem;color:#b8860b;text-align:center;background:#fff8e1;border-radius:6px;padding:6px 10px">⚠ El email puede llegar a la carpeta de Spam o No deseados — revisá ahí si no lo ves en la bandeja de entrada en unos minutos.</p>
       <input type="email" id="forgot-email" placeholder="Tu email" autocomplete="off">
       <button class="login-btn" onclick="doForgot()">Enviar link</button>
       <div style="text-align:center;margin-top:0.5rem">
@@ -652,7 +653,7 @@ async function doForgot() {
       body: JSON.stringify({ email })
     });
     const el = document.getElementById('forgot-msg');
-    el.textContent = '✓ Si el email existe, recibirás el link en minutos.';
+    el.textContent = '✓ Si el email existe, recibirás el link en minutos. Revisá también la carpeta de Spam / No deseados.';
     el.className = 'login-msg success';
   } catch(e) {
     const el = document.getElementById('forgot-msg');
