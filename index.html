@@ -494,9 +494,6 @@ async function doLogin() {
 
     userToken = data.access_token;
     currentUser = { token: data.access_token, email: data.user.email };
-    localStorage.setItem('inq_token', data.access_token);
-    localStorage.setItem('inq_email', data.user.email);
-    if (data.refresh_token) localStorage.setItem('inq_refresh_token', data.refresh_token);
 
     // Verify user is approved
     const usuarios = await sbGetWithRefresh('usuarios', `email=eq.${encodeURIComponent(email)}&select=*`, data.access_token);
@@ -510,11 +507,23 @@ async function doLogin() {
       return;
     }
 
-    // If logging in with temp password, force password change
+    // Si logueó con la temporal, IMPORTANTE: no guardar nada en localStorage
+    // todavía. Antes se guardaba el token apenas se autenticaba, antes de
+    // este chequeo — así que alcanzaba con recargar la página (F5) en la
+    // pantalla de "cambiá tu contraseña" para que checkSession() encontrara
+    // el token ya guardado y entrara directo a la app, sin haber cambiado
+    // nunca la temporal. Ahora el token recién se persiste en
+    // confirmarCambioContrasena(), una vez que el cambio se completó de
+    // verdad.
     if (usuarios[0].temp_password && pass === usuarios[0].temp_password) {
+      window._pendingRefreshToken = data.refresh_token || null;
       mostrarFormularioCambioContrasena(data.access_token, usuarios[0].id);
       return;
     }
+
+    localStorage.setItem('inq_token', data.access_token);
+    localStorage.setItem('inq_email', data.user.email);
+    if (data.refresh_token) localStorage.setItem('inq_refresh_token', data.refresh_token);
 
     await cargarApp();
   } catch(e) {
@@ -581,6 +590,15 @@ async function confirmarCambioContrasena(token, usuarioId) {
       headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ temp_password: null })
     });
+    // Recién ahora, con la contraseña ya cambiada de verdad, persistir la
+    // sesión — antes esto se guardaba apenas se logueaba (en doLogin), lo
+    // que permitía saltarse este paso recargando la página.
+    localStorage.setItem('inq_token', token);
+    localStorage.setItem('inq_email', currentUser?.email || '');
+    if (window._pendingRefreshToken) {
+      localStorage.setItem('inq_refresh_token', window._pendingRefreshToken);
+      window._pendingRefreshToken = null;
+    }
     msg.textContent = '✓ Contraseña guardada. Ingresando...';
     msg.style.color = 'var(--green)';
     msg.style.display = 'block';
