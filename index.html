@@ -824,13 +824,32 @@ async function cargarApp() {
       } catch(e) { console.error('Error loading pagos_suministros:', e); }
     }
 
-    renderApp(usuario, contratos, todosPagos, extrasMap, suministros, pagosSuministros);
+    // Noticias del portal: solo las vigentes hoy, filtradas del lado del
+    // cliente según a quién le corresponda (general / por servicio a cargo /
+    // por índice de actualización del contrato) — si falla (ej: la tabla
+    // todavía no existe en Supabase), no romper el resto del portal.
+    let noticias = [];
+    try {
+      const hoy = TODAY.substring(0,10);
+      const todasNoticias = await sbGet('noticias_portal', `activo=eq.true&fecha_desde=lte.${hoy}&fecha_hasta=gte.${hoy}&order=fecha_desde.desc`);
+      const serviciosInq = contratos.map(c => (c.servicios_inquilino||'').toLowerCase());
+      const indicesInq = contratos.map(c => c.indice_actualizacion);
+      const idsContratosInq = contratos.map(c => String(c.id));
+      noticias = todasNoticias.filter(n => {
+        if (n.alcance === 'servicio') return serviciosInq.some(s => s.includes((n.alcance_valor||'').toLowerCase()));
+        if (n.alcance === 'indice') return indicesInq.includes(n.alcance_valor);
+        if (n.alcance === 'contrato') return idsContratosInq.includes(String(n.alcance_valor));
+        return true; // general
+      });
+    } catch(e) { console.error('Error loading noticias_portal:', e); }
+
+    renderApp(usuario, contratos, todosPagos, extrasMap, suministros, pagosSuministros, noticias);
   } catch(e) {
     document.getElementById('loading').innerHTML = `<p style="color:var(--accent)">Error al cargar datos: ${e.message}</p>`;
   }
 }
 
-function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pagosSuministros=[]) {
+function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pagosSuministros=[], noticias=[]) {
   document.getElementById('loading').style.display = 'none';
   document.getElementById('content').style.display = 'block';
   window._extrasMapPortal = extrasMap;
@@ -892,6 +911,22 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
       </div>
       <div style="font-size:0.78rem;opacity:0.6">${new Date().toLocaleDateString('es-AR',{timeZone:'America/Argentina/Buenos_Aires',weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
     </div>
+
+    ${(() => {
+      // Noticias que el inquilino ya descartó no se vuelven a mostrar en
+      // este navegador (localStorage) — si vence y se vuelve a publicar una
+      // nueva con el mismo texto, es una noticia distinta (otro id), así que
+      // sí se muestra.
+      let descartadas = [];
+      try { descartadas = JSON.parse(localStorage.getItem('noticiasDescartadas') || '[]'); } catch(e) {}
+      const visibles = noticias.filter(n => !descartadas.includes(n.id));
+      if (!visibles.length) return '';
+      return visibles.map(n => `
+        <div id="noticia-portal-${n.id}" style="background:${n.tipo==='importante'?'#fff3cd':'#eef4ff'};border:1px solid ${n.tipo==='importante'?'#ffe08a':'#c9dcff'};border-radius:10px;padding:0.75rem 1rem;margin-bottom:0.6rem;display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="font-size:0.85rem;color:${n.tipo==='importante'?'#856404':'#1a3a6b'}">${n.tipo==='importante'?'⚠️':'📢'} ${(n.texto||'').replace(/</g,'&lt;')}</div>
+          <button onclick="descartarNoticiaPortal(${n.id})" title="No volver a mostrar" style="background:none;border:none;color:${n.tipo==='importante'?'#856404':'#1a3a6b'};opacity:0.6;cursor:pointer;font-size:0.9rem;flex-shrink:0;padding:0 4px">✕</button>
+        </div>`).join('');
+    })()}
 
     <div class="stats-row">
       <div class="stat-card green">
@@ -1168,6 +1203,14 @@ function formatDate(d, showDay=false) {
 function formatMoney(n) {
   if (n == null || isNaN(n)) return '—';
   return '<span style="white-space:nowrap">$ ' + Number(n).toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
+}
+
+function descartarNoticiaPortal(id) {
+  let descartadas = [];
+  try { descartadas = JSON.parse(localStorage.getItem('noticiasDescartadas') || '[]'); } catch(e) {}
+  if (!descartadas.includes(id)) descartadas.push(id);
+  localStorage.setItem('noticiasDescartadas', JSON.stringify(descartadas));
+  document.getElementById(`noticia-portal-${id}`)?.remove();
 }
 
 // Detalle de los extras de un mes puntual, con link al comprobante cuando
