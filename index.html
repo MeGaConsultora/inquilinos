@@ -762,6 +762,7 @@ async function actualizarBotonNotificaciones() {
   if (Notification.permission === 'denied') {
     btn.innerHTML = '<span class="notif-emoji">🔕</span><span class="notif-text"> Avisos bloqueados</span>';
     btn.title = 'Los bloqueaste en el navegador — para reactivarlos, entrá a la configuración del sitio en tu navegador.';
+    btn.style.background = 'rgba(220,53,69,0.35)';
     return;
   }
   try {
@@ -771,7 +772,13 @@ async function actualizarBotonNotificaciones() {
       ? '<span class="notif-emoji">🔔</span><span class="notif-text"> Avisos activados</span>'
       : '<span class="notif-emoji">🔔</span><span class="notif-text"> Activar avisos</span>';
     btn.title = sub ? 'Avisos activados — tocá para desactivar' : 'Activar avisos de este portal';
-  } catch (e) { btn.innerHTML = '<span class="notif-emoji">🔔</span><span class="notif-text"> Activar avisos</span>'; }
+    // Color, no solo texto, para que se note el estado aunque en el celu
+    // el botón quede reducido solo al ícono (sin el texto al lado).
+    btn.style.background = sub ? '#2d7a4f' : 'rgba(255,255,255,0.12)';
+  } catch (e) {
+    btn.innerHTML = '<span class="notif-emoji">🔔</span><span class="notif-text"> Activar avisos</span>';
+    btn.style.background = 'rgba(255,255,255,0.12)';
+  }
 }
 
 async function activarNotificacionesPush() {
