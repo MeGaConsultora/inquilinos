@@ -788,12 +788,16 @@ async function activarNotificacionesPush() {
     }
     const permiso = await Notification.requestPermission();
     if (permiso !== 'granted') { await actualizarBotonNotificaciones(); return; }
+    if (!window._miPersonaId) {
+      alert('Todavía no tenés un contrato vinculado a tu usuario, así que no puedo guardar el aviso. Pedile a la inmobiliaria que revise tu vínculo de cuenta.');
+      return;
+    }
     const sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
     });
     const subJson = sub.toJSON();
-    await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
+    const resp = await fetch(`${SB_URL}/rest/v1/push_subscriptions?on_conflict=endpoint`, {
       method: 'POST',
       headers: { apikey: SB_KEY, Authorization: `Bearer ${currentUser.token}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
       body: JSON.stringify({
@@ -805,10 +809,15 @@ async function activarNotificacionesPush() {
         user_agent: navigator.userAgent
       })
     });
+    if (!resp.ok) {
+      const detalle = await resp.text().catch(() => '');
+      await sub.unsubscribe().catch(() => {}); // no dejar una suscripción activa del lado del navegador si no se pudo guardar
+      throw new Error(`Supabase respondió ${resp.status}: ${detalle}`);
+    }
     await actualizarBotonNotificaciones();
   } catch (e) {
     console.error('Error activando notificaciones:', e);
-    alert('No se pudieron activar los avisos. Probá de nuevo en unos segundos.');
+    alert('No se pudieron activar los avisos.\n\nDetalle técnico (mandá esto si le avisás a soporte):\n' + (e?.message || e));
   }
 }
 
