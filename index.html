@@ -70,14 +70,22 @@
   header {
     background:var(--ink); color:white;
     padding:0 1.5rem; display:flex; align-items:center;
-    justify-content:space-between; height:60px;
+    justify-content:space-between; min-height:60px;
     position:sticky; top:0; z-index:100;
     box-shadow:0 2px 16px rgba(0,0,0,0.25);
   }
-  .logo { font-family:'DM Serif Display',serif; font-size:1.2rem; display:flex; align-items:center; gap:8px; }
+  .logo { font-family:'DM Serif Display',serif; font-size:1.2rem; display:flex; align-items:center; gap:8px; white-space:nowrap; }
   .logo-dot { width:7px; height:7px; background:var(--accent); border-radius:50%; }
   .header-right { display:flex; align-items:center; gap:0.75rem; font-size:0.82rem; }
-  .salir-btn { background:rgba(255,255,255,0.12); border:none; color:white; padding:5px 12px; border-radius:6px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.82rem; }
+  .salir-btn { background:rgba(255,255,255,0.12); border:none; color:white; padding:5px 12px; border-radius:6px; cursor:pointer; font-family:'DM Sans',sans-serif; font-size:0.82rem; white-space:nowrap; }
+  @media (max-width: 480px) {
+    header { padding:0 0.85rem; }
+    .logo { font-size:0.95rem; gap:5px; }
+    .header-right { gap:0.4rem; }
+    #user-name { display:none; }
+    .salir-btn { padding:5px 9px; }
+    #btn-notif .notif-text { display:none; }
+  }
 
   /* MAIN */
   main { padding:1.5rem; max-width:900px; margin:0 auto; }
@@ -213,7 +221,7 @@
   <div class="logo"><div class="logo-dot"></div>Mi Alquiler</div>
   <div class="header-right">
     <span id="user-name" style="opacity:0.8"></span>
-    <button id="btn-notif" class="salir-btn" style="display:none" onclick="activarNotificacionesPush()">🔔 Activar avisos</button>
+    <button id="btn-notif" class="salir-btn" style="display:none" onclick="activarNotificacionesPush()"><span class="notif-emoji">🔔</span><span class="notif-text"> Activar avisos</span></button>
     <button class="salir-btn" onclick="doLogout()">Salir</button>
   </div>
 </header>
@@ -752,15 +760,18 @@ async function actualizarBotonNotificaciones() {
   if (!btn || !soportaPush()) { if (btn) btn.style.display = 'none'; return; }
   btn.style.display = 'inline-block';
   if (Notification.permission === 'denied') {
-    btn.textContent = '🔕 Avisos bloqueados';
+    btn.innerHTML = '<span class="notif-emoji">🔕</span><span class="notif-text"> Avisos bloqueados</span>';
     btn.title = 'Los bloqueaste en el navegador — para reactivarlos, entrá a la configuración del sitio en tu navegador.';
     return;
   }
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    btn.textContent = sub ? '🔔 Avisos activados' : '🔔 Activar avisos';
-  } catch (e) { btn.textContent = '🔔 Activar avisos'; }
+    btn.innerHTML = sub
+      ? '<span class="notif-emoji">🔔</span><span class="notif-text"> Avisos activados</span>'
+      : '<span class="notif-emoji">🔔</span><span class="notif-text"> Activar avisos</span>';
+    btn.title = sub ? 'Avisos activados — tocá para desactivar' : 'Activar avisos de este portal';
+  } catch (e) { btn.innerHTML = '<span class="notif-emoji">🔔</span><span class="notif-text"> Activar avisos</span>'; }
 }
 
 async function activarNotificacionesPush() {
