@@ -213,6 +213,7 @@
   <div class="logo"><div class="logo-dot"></div>Mi Alquiler</div>
   <div class="header-right">
     <span id="user-name" style="opacity:0.8"></span>
+    <button id="btn-notif" class="salir-btn" style="display:none" onclick="activarNotificacionesPush()">🔔 Activar avisos</button>
     <button class="salir-btn" onclick="doLogout()">Salir</button>
   </div>
 </header>
@@ -728,6 +729,89 @@ document.addEventListener('keydown', e => {
 // ============================================================
 // APP
 // ============================================================
+// ============================================================
+// NOTIFICACIONES PUSH
+// ============================================================
+// Clave pública VAPID — es SEGURO que esté visible en el cliente (a
+// diferencia de la privada, que solo vive en la Edge Function).
+const VAPID_PUBLIC_KEY = 'BI67WYFPFerFtzjpp0gBMgjaAa2WJxd52DZJ40RGzl75otbnBJw4VA8pLqQD4KORH0JitNnMMXg6iV1xVoIy-gc';
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+function soportaPush() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function actualizarBotonNotificaciones() {
+  const btn = document.getElementById('btn-notif');
+  if (!btn || !soportaPush()) { if (btn) btn.style.display = 'none'; return; }
+  btn.style.display = 'inline-block';
+  if (Notification.permission === 'denied') {
+    btn.textContent = '🔕 Avisos bloqueados';
+    btn.title = 'Los bloqueaste en el navegador — para reactivarlos, entrá a la configuración del sitio en tu navegador.';
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    btn.textContent = sub ? '🔔 Avisos activados' : '🔔 Activar avisos';
+  } catch (e) { btn.textContent = '🔔 Activar avisos'; }
+}
+
+async function activarNotificacionesPush() {
+  if (!soportaPush()) { alert('Tu navegador no soporta notificaciones push.'); return; }
+  const esStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const esIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  if (esIOS && !esStandalone) {
+    alert('En iPhone, para recibir avisos primero tenés que instalar esta app: Compartir → "Agregar a inicio". Después abrí el ícono instalado y activá los avisos desde ahí.');
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existente = await reg.pushManager.getSubscription();
+    if (existente) {
+      // Ya estaba activado — lo desactivamos (toggle) y borramos del server
+      await existente.unsubscribe();
+      try {
+        await fetch(`${SB_URL}/rest/v1/push_subscriptions?endpoint=eq.${encodeURIComponent(existente.endpoint)}`, {
+          method: 'DELETE',
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${currentUser.token}` }
+        });
+      } catch (e) {}
+      await actualizarBotonNotificaciones();
+      return;
+    }
+    const permiso = await Notification.requestPermission();
+    if (permiso !== 'granted') { await actualizarBotonNotificaciones(); return; }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+    });
+    const subJson = sub.toJSON();
+    await fetch(`${SB_URL}/rest/v1/push_subscriptions`, {
+      method: 'POST',
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${currentUser.token}`, 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify({
+        persona_id: window._miPersonaId,
+        usuario_email: window._miEmail,
+        endpoint: subJson.endpoint,
+        p256dh: subJson.keys.p256dh,
+        auth: subJson.keys.auth,
+        user_agent: navigator.userAgent
+      })
+    });
+    await actualizarBotonNotificaciones();
+  } catch (e) {
+    console.error('Error activando notificaciones:', e);
+    alert('No se pudieron activar los avisos. Probá de nuevo en unos segundos.');
+  }
+}
+
 async function cargarApp() {
   hideLogin();
   document.getElementById('app-content').style.display = 'block';
@@ -740,6 +824,9 @@ async function cargarApp() {
     const usuarios = await sbGetWithRefresh('usuarios', `email=eq.${encodeURIComponent(currentUser.email)}&select=*`);
     const usuario = usuarios[0];
     document.getElementById('user-name').textContent = usuario?.nombre || currentUser.email;
+    window._miPersonaId = usuario?.persona_id || null;
+    window._miEmail = currentUser.email;
+    actualizarBotonNotificaciones();
 
     if (!usuario?.persona_id) {
       document.getElementById('loading').style.display = 'none';
