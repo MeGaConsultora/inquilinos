@@ -353,7 +353,7 @@ async function verBoletaInq(pagoId, tipoPre, idPre) {
   let pdfs = [];
   try {
     const resp = await fetch(`${SB_URL}/rest/v1/pagos_pdf?pago_id=eq.${pagoId}&order=servicio.asc`,
-      { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${SB_KEY}` } });
+      { headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${currentUser?.token || SB_KEY}` } });
     pdfs = await resp.json();
   } catch(e) {}
   const extrasConArchivo = ((window._extrasMapPortal || {})[pagoId] || []).filter(e => e.archivo_path);
@@ -408,7 +408,7 @@ async function abrirBoletaPdfInq(pdfRec) {
   try {
     // Get signed URL
     const resp = await fetch(`${SB_URL}/storage/v1/object/sign/servicios/${pdfRec.pdf_path}`,
-      { method: 'POST', headers: { 'Authorization': `Bearer ${SB_KEY}`, 'Content-Type': 'application/json' },
+      { method: 'POST', headers: { 'Authorization': `Bearer ${currentUser?.token || SB_KEY}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ expiresIn: 3600 }) });
     const data = await resp.json();
     const signedUrl = data.signedURL ? `${SB_URL}/storage/v1${data.signedURL}` : null;
