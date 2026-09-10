@@ -468,11 +468,23 @@ async function abrirBoletaPdfInq(pdfRec) {
 }
 
 // Comprobante de un extra: archivo autónomo (foto o PDF completo) en el
-// bucket "contratos-archivos", de lectura pública — se abre directo, sin
-// necesidad de firmar la URL ni de renderizar nada con pdf.js.
-function abrirComprobanteExtraInq(extraRec) {
-  const url = `${SB_URL}/storage/v1/object/public/contratos-archivos/${extraRec.archivo_path}`;
-  window.open(url, '_blank');
+// bucket "contratos-archivos". Antes era de lectura pública así que se
+// abría directo; ahora el bucket es privado, así que hace falta pedir
+// una URL firmada (igual que ya se hace con las boletas de servicios).
+async function abrirComprobanteExtraInq(extraRec) {
+  try {
+    const resp = await fetch(`${SB_URL}/storage/v1/object/sign/contratos-archivos/${extraRec.archivo_path}`, {
+      method: 'POST',
+      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${currentUser?.token || SB_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresIn: 3600 })
+    });
+    const data = await resp.json();
+    const signedUrl = data.signedURL ? `${SB_URL}/storage/v1${data.signedURL}` : null;
+    if (!signedUrl) throw new Error('No se pudo obtener la URL del comprobante');
+    window.open(signedUrl, '_blank');
+  } catch(e) {
+    alert('Error al abrir el comprobante: ' + e.message);
+  }
 }
 
 // Auto-refresh token every 45 minutes
