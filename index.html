@@ -672,6 +672,7 @@ async function doRegistro() {
 }
 
 function doLogout() {
+  detenerTimerInactividad();
   localStorage.removeItem('inq_token');
   localStorage.removeItem('inq_email');
   localStorage.removeItem('inq_refresh_token');
@@ -851,7 +852,42 @@ async function activarNotificacionesPush() {
   }
 }
 
+// ============================================================
+// CIERRE POR INACTIVIDAD — si el inquilino se olvida el portal
+// abierto sin tocarlo, se cierra sesión sola después de 1 hora. Mismo
+// mecanismo que ya usa la app de gestión: puramente local del
+// navegador (setTimeout), sin ningún llamado a Supabase ni contacto
+// con tokens — se reinicia solo con actividad real (mouse, teclado,
+// touch, scroll), y si pasan 60 minutos sin nada de eso, llama a
+// doLogout(). De paso, esto evita que alguien se quede viendo datos
+// desactualizados por tener el portal abierto demasiado tiempo sin
+// recargar — al volver a entrar, siempre carga todo de cero.
+const INACTIVIDAD_LIMITE_MS = 60 * 60 * 1000; // 1 hora
+const INACTIVIDAD_EVENTOS = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+let _inactividadTimer = null;
+let _inactividadUltimoReset = 0;
+function _resetTimerInactividad() {
+  const ahora = Date.now();
+  if (ahora - _inactividadUltimoReset < 5000) return;
+  _inactividadUltimoReset = ahora;
+  if (_inactividadTimer) clearTimeout(_inactividadTimer);
+  _inactividadTimer = setTimeout(() => {
+    toast('Se cerró la sesión por inactividad (1 hora sin uso)', 'error');
+    doLogout();
+  }, INACTIVIDAD_LIMITE_MS);
+}
+function iniciarTimerInactividad() {
+  INACTIVIDAD_EVENTOS.forEach(ev => document.addEventListener(ev, _resetTimerInactividad, { passive: true }));
+  _inactividadUltimoReset = 0;
+  _resetTimerInactividad();
+}
+function detenerTimerInactividad() {
+  if (_inactividadTimer) { clearTimeout(_inactividadTimer); _inactividadTimer = null; }
+  INACTIVIDAD_EVENTOS.forEach(ev => document.removeEventListener(ev, _resetTimerInactividad));
+}
+
 async function cargarApp() {
+  iniciarTimerInactividad();
   hideLogin();
   document.getElementById('app-content').style.display = 'block';
   document.getElementById('btn-whatsapp-flotante').style.display = 'flex';
