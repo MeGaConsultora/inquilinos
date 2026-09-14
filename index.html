@@ -642,35 +642,6 @@ async function confirmarCambioContrasena(token, usuarioId) {
   } catch(e) { msg.textContent = 'Error: ' + e.message; msg.style.color = 'var(--accent)'; msg.style.display = 'block'; }
 }
 
-async function doRegistro() {
-  const nombre = document.getElementById('reg-nombre').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  const pass = document.getElementById('reg-pass').value;
-  const dni = document.getElementById('reg-dni').value.trim().replace(/\./g,'');
-  if (!nombre || !email || !pass) { showMsg('registro','Completá todos los campos','error'); return; }
-  if (pass.length < 6) { showMsg('registro','La contraseña debe tener al menos 6 caracteres','error'); return; }
-  try {
-    const r = await fetch(`${SB_AUTH}/signup`, {
-      method:'POST',
-      headers:{ 'apikey':SB_KEY, 'Content-Type':'application/json' },
-      body: JSON.stringify({ email, password: pass })
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error_description || 'Error al registrarse');
-
-    // Insert into usuarios - approved by default, will auto-link by DNI
-    await fetch(`${SB_URL}/rest/v1/usuarios`, {
-      method:'POST',
-      headers:{ 'apikey':SB_KEY, 'Authorization':`Bearer ${SB_KEY}`, 'Content-Type':'application/json', 'Prefer':'return=representation' },
-      body: JSON.stringify({ email, nombre, aprobado:true, admin:false, rol:'inquilino', user_id: data.user?.id||null })
-    });
-
-    showMsg('registro', '✓ Cuenta creada. Revisá tu email para confirmar tu cuenta y poder ingresar.', 'success');
-  } catch(e) {
-    showMsg('registro', e.message==='User already registered' ? 'Este email ya está registrado.' : e.message, 'error');
-  }
-}
-
 function doLogout() {
   detenerTimerInactividad();
   localStorage.removeItem('inq_token');
@@ -1256,42 +1227,6 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
 // ============================================================
 // HELPERS
 // ============================================================
-async function vincularPorDNI(usuarioId) {
-  const dni = document.getElementById('dni-vinc')?.value.trim().replace(/\./g,'');
-  if (!dni || dni.length < 6) {
-    alert('Ingresá un DNI válido');
-    return;
-  }
-  try {
-    // Search persona by DNI — vía RPC (no consulta la tabla personas
-    // directo, para no tener que abrirle acceso de lectura general a
-    // los inquilinos; la función del lado del servidor solo devuelve
-    // id/apellido/nombre, nunca el resto de los datos de la persona).
-    const r = await fetch(`${SB_URL}/rest/v1/rpc/buscar_persona_por_dni`, {
-      method: 'POST',
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dni_param: dni })
-    });
-    const personas = await r.json();
-    if (!personas.length) {
-      alert('No encontramos ninguna persona con ese DNI. Comunicate con la inmobiliaria.');
-      return;
-    }
-    // Link user to persona
-    const persona = personas[0];
-    await fetch(`${SB_URL}/rest/v1/usuarios?id=eq.${usuarioId}`, {
-      method: 'PATCH',
-      headers: { 'apikey': SB_KEY, 'Authorization': `Bearer ${userToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ persona_id: persona.id })
-    });
-    toast(`✓ Cuenta vinculada con ${persona.apellido}, ${persona.nombre}`);
-    // Reload app
-    await cargarApp();
-  } catch(e) {
-    alert('Error: ' + e.message);
-  }
-}
-
 function mostrarFormularioNuevaContrasena(accessToken) {
   document.getElementById('login-screen').style.display = 'flex';
   document.getElementById('app-content').style.display = 'none';
