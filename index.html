@@ -170,6 +170,28 @@
   .empty { text-align:center; padding:2rem; color:#aaa; }
 
   @media(max-width:600px) { main { padding:1rem; } .welcome-card { padding:1rem; } }
+
+  /* PAGOS — tarjetas en mobile (la tabla tiene demasiadas columnas para
+     entrar en una pantalla chica; con scroll horizontal, el botón de
+     adjunto —última columna— quedaba invisible para buena parte de los
+     inquilinos, que nunca llegaban a descubrirlo) */
+  .pagos-cards { display:none; flex-direction:column; gap:0.7rem; }
+  .pago-card { border:1px solid var(--border); border-radius:12px; padding:0.9rem 1rem; background:white; }
+  .pago-card.row-vencido { background:#fff0f0; border-color:#f3c6c6; }
+  .pago-card.row-pagado { background:#f6fbf7; }
+  .pago-card.row-futuro { background:#f4f7ff; }
+  .pago-card.row-parcial { background:#fffaf0; border-color:#f0dca0; }
+  .pago-card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:0.6rem; }
+  .pago-card-mes { font-family:'DM Serif Display',serif; font-size:1.05rem; }
+  .pago-card-totales { display:flex; gap:1.5rem; margin-bottom:0.5rem; }
+  .pago-card-totales .lbl { font-size:0.66rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:#999; margin-bottom:2px; }
+  .pago-card-totales .val { font-size:1.05rem; font-weight:600; }
+  .pago-card-detalle { font-size:0.78rem; color:#777; line-height:1.5; margin-bottom:0.7rem; }
+  .pago-card-adjunto { display:flex; align-items:center; justify-content:center; gap:6px; width:100%; background:var(--ink); color:white; border:none; border-radius:8px; padding:0.6rem; font-size:0.85rem; font-family:'DM Sans',sans-serif; cursor:pointer; }
+  @media(max-width:600px) {
+    .table-wrap { display:none; }
+    .pagos-cards { display:flex; }
+  }
 </style>
 <script src="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
@@ -1128,6 +1150,73 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
     const estLabel = est === 'rescindido' ? 'rescindido' : est === 'vencido' ? 'vencido' : 'vigente';
     const badgeClass = est === 'vigente' ? 'badge-green' : 'badge-gray';
 
+    // Se arma una sola vez cada fila (tr de tabla + tarjeta mobile) a partir
+    // de los mismos datos calculados, para no duplicar la lógica de estado
+    // (pagado/vencido/futuro/parcial) entre las dos vistas.
+    const filasPagos = pagosContrato.map(p => {
+      // Un mes con cargo ($ total > 0) y saldo en 0 está pagado, incluso si
+      // es un mes futuro (pago adelantado) — antes, "esFuturo" tenía
+      // prioridad y esos meses quedaban en azul ("Futuro") en vez de verde
+      // ("Pagado") aunque ya estuvieran saldados. Un mes futuro SIN cargo
+      // todavía (total=0, a la espera de su actualización) sigue
+      // mostrándose como Futuro.
+      const tieneCargo = (p.total || 0) > 0;
+      const estaPagado = tieneCargo && (!p.saldo || p.saldo <= 0);
+      const esFuturo = !estaPagado && p.mes && p.mes.substring(0,7) > TODAY.substring(0,7);
+      const pend = !esFuturo && !estaPagado && p.saldo && p.saldo > 0;
+      const rowClass = estaPagado ? 'row-pagado' : esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
+      const extras = extrasMap[p.id] || [];
+      const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
+      const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: $ ${Math.round(e.importe||0).toLocaleString('es-AR')}${e.archivo_path?' 📎':''}`).join(', ') : '—';
+
+      const impEpe = getImporteServicioPortal(p, c, 'epe');
+      const impAgua = getImporteServicioPortal(p, c, 'agua');
+      const impTgiu = getImporteServicioPortal(p, c, 'tgiu');
+      const impSeguro = getImporteServicioPortal(p, c, 'seguro');
+      const badgeHtml = estaPagado?'<span class="badge badge-green">Pagado</span>':esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>';
+      const tieneAdjunto = window._inqPagosPdf?.[+p.id]?.length || extras.some(e=>e.archivo_path);
+      const vencimientoLabel = formatDate(calcularFechaVencimientoPortal(p.mes.substring(0,7), c), true);
+
+      const detalleItems = [
+        p.importe_alquiler>0 && `Alquiler ${formatMoney(p.importe_alquiler)}`,
+        impEpe>0 && `EPE ${formatMoney(impEpe)}`,
+        impAgua>0 && `Agua ${formatMoney(impAgua)}`,
+        impTgiu>0 && `TGIU ${formatMoney(impTgiu)}`,
+        impSeguro>0 && `Seguro ${formatMoney(impSeguro)}`,
+        totalExtras>0 && `Extras ${formatMoney(totalExtras)}`,
+      ].filter(Boolean).join(' · ');
+
+      const tr = `<tr class="${rowClass}">
+                    <td><strong>${formatDate(p.mes)}</strong></td>
+                    <td style="white-space:nowrap">${vencimientoLabel}</td>
+                    <td class="r">${p.importe_alquiler>0?formatMoney(p.importe_alquiler):'—'}</td>
+                    <td class="r">${impEpe>0?formatMoney(impEpe):'—'}</td>
+                    <td class="r">${impAgua>0?formatMoney(impAgua):'—'}</td>
+                    <td class="r">${impTgiu>0?formatMoney(impTgiu):'—'}</td>
+                    <td class="r">${impSeguro>0?formatMoney(impSeguro):'—'}</td>
+                    <td class="r" title="${extrasLabel}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${totalExtras>0?formatMoney(totalExtras):'—'}</td>
+                    <td class="r"><strong>${formatMoney(p.total)}</strong></td>
+                    <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
+                    <td>${badgeHtml}</td>
+                    <td>${tieneAdjunto ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
+                  </tr>`;
+
+      const card = `<div class="pago-card ${rowClass}">
+                    <div class="pago-card-top">
+                      <span class="pago-card-mes">${formatDate(p.mes)}</span>
+                      ${badgeHtml}
+                    </div>
+                    <div class="pago-card-totales">
+                      <div><div class="lbl">Total</div><div class="val">${formatMoney(p.total)}</div></div>
+                      <div><div class="lbl">Saldo</div><div class="val ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</div></div>
+                    </div>
+                    <div class="pago-card-detalle">Vence ${vencimientoLabel}${detalleItems ? ' · '+detalleItems : ''}</div>
+                    ${tieneAdjunto ? `<button class="pago-card-adjunto" onclick="verBoletaInq(${p.id})">📎 Ver adjunto</button>` : ''}
+                  </div>`;
+
+      return { tr, card };
+    });
+
     return `
       <div class="contrato-card">
         <div class="contrato-header">
@@ -1165,44 +1254,12 @@ function renderApp(usuario, contratos, todosPagos, extrasMap, suministros=[], pa
                 <th></th>
               </tr></thead>
               <tbody>
-                ${pagosContrato.map(p => {
-                  // Un mes con cargo ($ total > 0) y saldo en 0 está pagado,
-                  // incluso si es un mes futuro (pago adelantado) — antes,
-                  // "esFuturo" tenía prioridad y esos meses quedaban en azul
-                  // ("Futuro") en vez de verde ("Pagado") aunque ya estuvieran
-                  // saldados. Un mes futuro SIN cargo todavía (total=0, a la
-                  // espera de su actualización) sigue mostrándose como Futuro.
-                  const tieneCargo = (p.total || 0) > 0;
-                  const estaPagado = tieneCargo && (!p.saldo || p.saldo <= 0);
-                  const esFuturo = !estaPagado && p.mes && p.mes.substring(0,7) > TODAY.substring(0,7);
-                  const pend = !esFuturo && !estaPagado && p.saldo && p.saldo > 0;
-                  const rowClass = estaPagado ? 'row-pagado' : esFuturo ? 'row-futuro' : pend ? (p.pagado==='PARCIAL'?'row-parcial':'row-vencido') : 'row-pagado';
-                  const extras = extrasMap[p.id] || [];
-                  const totalExtras = extras.reduce((s,e)=>s+(e.importe||0),0);
-                  const extrasLabel = extras.length > 0 ? extras.map(e=>`${(e.concepto||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}: $ ${Math.round(e.importe||0).toLocaleString('es-AR')}${e.archivo_path?' 📎':''}`).join(', ') : '—';
-
-                  const impEpe = getImporteServicioPortal(p, c, 'epe');
-                  const impAgua = getImporteServicioPortal(p, c, 'agua');
-                  const impTgiu = getImporteServicioPortal(p, c, 'tgiu');
-                  const impSeguro = getImporteServicioPortal(p, c, 'seguro');
-
-                  return `<tr class="${rowClass}">
-                    <td><strong>${formatDate(p.mes)}</strong></td>
-                    <td style="white-space:nowrap">${formatDate(calcularFechaVencimientoPortal(p.mes.substring(0,7), c), true)}</td>
-                    <td class="r">${p.importe_alquiler>0?formatMoney(p.importe_alquiler):'—'}</td>
-                    <td class="r">${impEpe>0?formatMoney(impEpe):'—'}</td>
-                    <td class="r">${impAgua>0?formatMoney(impAgua):'—'}</td>
-                    <td class="r">${impTgiu>0?formatMoney(impTgiu):'—'}</td>
-                    <td class="r">${impSeguro>0?formatMoney(impSeguro):'—'}</td>
-                    <td class="r" title="${extrasLabel}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${totalExtras>0?formatMoney(totalExtras):'—'}</td>
-                    <td class="r"><strong>${formatMoney(p.total)}</strong></td>
-                    <td class="r ${pend?'saldo-pend':'saldo-ok'}">${pend?formatMoney(p.saldo):'✓'}</td>
-                    <td>${estaPagado?'<span class="badge badge-green">Pagado</span>':esFuturo?'<span class="badge badge-blue">Futuro</span>':pend?'<span class="badge badge-red">Pendiente</span>':'<span class="badge badge-green">Pagado</span>'}</td>
-                    <td>${(window._inqPagosPdf?.[+p.id]?.length || extras.some(e=>e.archivo_path)) ? `<button onclick="verBoletaInq(${p.id})" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-size:0.78rem;cursor:pointer">📄</button>` : ''}</td>
-                  </tr>`;
-                }).join('')}
+                ${filasPagos.map(f => f.tr).join('')}
               </tbody>
             </table>
+          </div>
+          <div class="pagos-cards">
+            ${filasPagos.map(f => f.card).join('')}
           </div>
         </div>
       </div>
