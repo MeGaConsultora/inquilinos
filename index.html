@@ -89,6 +89,13 @@
 
   /* MAIN */
   main { padding:1.5rem; max-width:900px; margin:0 auto; }
+  /* La tabla de pagos tiene 12 columnas — en una notebook con espacio de
+     sobra, el tope de 900px la obligaba a scrollear horizontal igual, y
+     muchos inquilinos nunca descubrían que había que desplazarse para ver
+     la columna del adjunto. Se amplía el ancho disponible solo en pantallas
+     con lugar real para aprovecharlo (debajo de esto, las cards de
+     contrato/bienvenida siguen viéndose bien en 900px, no hace falta más). */
+  @media (min-width: 960px) { main { max-width:1280px; } }
 
   /* CARDS */
   .welcome-card {
@@ -129,12 +136,12 @@
   .table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--border); }
   table { width:100%; border-collapse:collapse; font-size:0.83rem; }
   thead { background:var(--ink); color:white; }
-  th { padding:0.6rem 0.8rem; text-align:left; font-size:0.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
+  th { padding:0.6rem 0.55rem; text-align:left; font-size:0.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; white-space:nowrap; }
   th.r, td.r { text-align:right; white-space:nowrap; }
   tbody tr { border-bottom:1px solid var(--border); transition:background 0.15s; }
   tbody tr:last-child { border-bottom:none; }
   tbody tr:hover { background:#faf7f2; }
-  td { padding:0.6rem 0.8rem; vertical-align:middle; }
+  td { padding:0.6rem 0.55rem; vertical-align:middle; }
   tr.row-vencido td { background:#fff0f0; color:#721c24; }
   tr.row-pagado td { background:#f0fff4; }
   tr.row-futuro td { background:#f0f4ff; color:#555; }
