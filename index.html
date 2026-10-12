@@ -572,6 +572,11 @@ async function doLogin() {
       return;
     }
 
+    if (usuarios[0].rol === 'propietario') {
+      showMsg('login', 'Esta sección es para inquilinos. Los propietarios ingresan por megaconsultora.github.io/propietarios', 'warn');
+      return;
+    }
+
     // Si logueó con la temporal, IMPORTANTE: no guardar nada en localStorage
     // todavía. Antes se guardaba el token apenas se autenticaba, antes de
     // este chequeo — así que alcanzaba con recargar la página (F5) en la
